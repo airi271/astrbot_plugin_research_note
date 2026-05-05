@@ -19,12 +19,52 @@ class ResearchNotePlugin(Star):
         message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
         logger.info(message_chain)
         yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
+
     # 注册指令的装饰器。指令名为 research_hellow。注册成功后，发送 `/research_hellow` 就会触发这个指令，并回复 `Research Note is ready, {user_name}!`
     @filter.command("research_hellow")
     async def research_hellow(self, event: AstrMessageEvent):
         """Research Note の動作確認コマンド。""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
         user_name = event.get_sender_name()
         yield event.plain_result(f"Research Note is ready, {user_name}!") # 发送一条纯文本消息
+
+    @filter.command_group("research")
+    def research_group(self):
+        """Research Note commands."""
+        pass
+
+    @research_group.command("help")
+    async def research_help(self, event: AstrMessageEvent):
+        """Research Note の使い方を表示します。"""
+        text = """Research Note commands:
+    /research add <text> - 資料を追加
+    /research list - 資料一覧
+    /research ask <question> - 資料に基づいて質問
+    /research clear --confirm - 全資料を削除
+    """
+        yield event.plain_result(text)
+
+    @research_group.command("add")
+    async def research_add(self, event: AstrMessageEvent, content: str):
+        """資料を追加します。"""
+        yield event.plain_result(f"資料を受け取りました: {content[:50]}")
+    
+    @research_group.command("list")
+    async def research_list(self, event: AstrMessageEvent):
+        """保存済み資料を表示します。"""
+        yield event.plain_result("まだ資料保存は実装していません。")
+
+    @research_group.command("ask")
+    async def research_ask(self, event: AstrMessageEvent, question: str):
+        """資料に基づいて質問します。"""
+        yield event.plain_result(f"質問を受け取りました: {question}")
+
+    @research_group.command("clear")
+    async def research_clear(self, event: AstrMessageEvent, confirm: str | None = None):
+        """保存済み資料を削除します。"""
+        if confirm != "--confirm":
+            yield event.plain_result("削除するには /research clear --confirm を実行してください。")
+            return
+        yield event.plain_result("削除処理はまだ実装していません。")
 
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
