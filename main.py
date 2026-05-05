@@ -12,20 +12,20 @@ class ResearchNotePlugin(Star):
         self.data_dir = Path(__file__).parent / "data"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.notes_file = self.data_dir / "research_notes.json"
-
+    # 从文件中加载 notes 列表，如果文件不存在则返回空列表
     def _load_notes(self) -> list[dict]:
         if not self.notes_file.exists():
             return []
         with self.notes_file.open("r", encoding="utf-8") as f:
             return json.load(f)
-        
+    # 将 notes 列表保存到文件中    
     def _save_notes(self, notes: list[dict]) -> None:
         with self.notes_file.open("w", encoding="utf-8") as f:
             json.dump(notes, f, ensure_ascii=False, indent=2)
-            
+    # 生成下一个 note 的 ID，格式为 note_001, note_002, ...        
     def _next_note_id(self, notes: list[dict]) -> str:
         return f"note_{len(notes) + 1:03d}"
-    
+    # 从消息中提取 research add 或 research ask 指令的内容
     def _extract_research_tail(self, event: AstrMessageEvent) -> str:
         raw_text = event.message_str.strip()
         prefix1 = "research add"
@@ -35,6 +35,34 @@ class ResearchNotePlugin(Star):
         if raw_text.startswith(prefix2):
             return raw_text[len(prefix2):].strip()
         return ""
+    
+    def _tokenize(self, text: str) -> list[str]:
+        normalized = text.lower().replace("\n", " ")
+        tokens = []
+        for token in normalized.split():
+            token = token.strip(".,!?;:()[]{}<>。、！？「」『』（）")
+            if token:
+                tokens.append(token)
+        return tokens
+
+    def _score_note(self, question: str, note: dict) -> int:
+        tokens = self._tokenize(question)
+        content = str(note.get("content", "")).lower()
+        score = 0
+        for token in tokens:
+            if token in content:
+                score += 1
+        return score
+    
+    def _search_notes(self, question: str, notes: list[dict], top_k: int = 3) -> list[dict]:
+        scored = []
+        for note in notes:
+            score = self._score_note(question, note)
+            if score > 0:
+                scored.append((score, note))
+
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return [note for score, note in scored[:top_k]]
         
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
@@ -107,9 +135,29 @@ class ResearchNotePlugin(Star):
         yield event.plain_result("\n".join(lines))
 
     @research_group.command("ask")
-    async def research_ask(self, event: AstrMessageEvent, question: str):
+    async def research_ask(self, event: AstrMessageEvent, question: str=""):
         """資料に基づいて質問します。"""
-        yield event.plain_result(f"質問を受け取りました: {question}")
+        question = self._extract_research_tail(event)
+        if not question:
+            yield event.plain_result("質問を入力してください。")
+            return
+
+        notes = self._load_notes()
+        if not notes:
+            yield event.plain_result("保存済み資料がありません。先に /research add で資料を追加してください。")
+            return
+
+        matched_notes = self._search_notes(question, notes, top_k=3)
+        if not matched_notes:
+            yield event.plain_result("関連する資料が見つかりませんでした。")
+            return
+
+        lines = ["関連資料:"]
+        for note in matched_notes:
+            preview = note["content"].replace("\n", " ")[:120]
+            lines.append(f"- {note['id']}: {preview}")
+
+        yield event.plain_result("\n".join(lines))
 
     @research_group.command("clear")
     async def research_clear(self, event: AstrMessageEvent, confirm: str | None = None):
