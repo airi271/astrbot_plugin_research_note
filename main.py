@@ -26,7 +26,7 @@ class ResearchNotePlugin(Star):
     def _next_note_id(self, notes: list[dict]) -> str:
         return f"note_{len(notes) + 1:03d}"
     
-    def _extract_research_add_content(self, event: AstrMessageEvent) -> str:
+    def _extract_research_tail(self, event: AstrMessageEvent) -> str:
         raw_text = event.message_str.strip()
         prefix1 = "research add"
         prefix2 = "research ask"
@@ -75,7 +75,7 @@ class ResearchNotePlugin(Star):
     @research_group.command("add")
     async def research_add(self, event: AstrMessageEvent, content: str=""):
         """資料を追加します。"""
-        content = self._extract_research_add_content(event)
+        content = self._extract_research_tail(event)
         if not content:
             yield event.plain_result("追加する資料テキストを入力してください。")
             return
