@@ -1,3 +1,5 @@
+from click import prompt
+
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
@@ -63,6 +65,25 @@ class ResearchNotePlugin(Star):
 
         scored.sort(key=lambda item: item[0], reverse=True)
         return [note for score, note in scored[:top_k]]
+    
+    def _build_answer_prompt(self, question: str, notes: list[dict]) -> str:
+        note_blocks = []
+        for note in notes:
+            content = str(note.get("content", ""))[:1200]
+            note_blocks.append(f"[{note['id']}]\n{content}")
+
+        sources = "\n\n".join(note_blocks)
+        return f"""あなたは研究補助AIです。
+    以下の資料だけを根拠にして、ユーザーの質問に日本語で答えてください。
+    資料に書かれていないことは、推測せず「資料からは分かりません」と答えてください。
+    回答の最後に、使用した資料IDを短く示してください。
+
+    資料:
+    {sources}
+
+    質問:
+    {question}
+    """
         
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
@@ -151,13 +172,28 @@ class ResearchNotePlugin(Star):
         if not matched_notes:
             yield event.plain_result("関連する資料が見つかりませんでした。")
             return
+        
+        prompt = self._build_answer_prompt(question, matched_notes)
+        provider_id = await self.context.get_current_chat_provider_id(
+            umo=event.unified_msg_origin
+        )
+        if not provider_id:
+            yield event.plain_result("利用可能な LLM provider が見つかりません。")
+            return
+        llm_resp = await self.context.llm_generate(
+            chat_provider_id=provider_id,
+            prompt=prompt,
+        )
+        answer = llm_resp.completion_text if llm_resp else "回答を生成できませんでした。"
+        source_ids = ", ".join(note["id"] for note in matched_notes)
+        yield event.plain_result(f"{answer}\n\n使用資料: {source_ids}\n\nprompt:\n{prompt}")
 
-        lines = ["関連資料:"]
-        for note in matched_notes:
-            preview = note["content"].replace("\n", " ")[:120]
-            lines.append(f"- {note['id']}: {preview}")
+        #lines = ["関連資料:"]
+        #for note in matched_notes:
+        #    preview = note["content"].replace("\n", " ")[:120]
+        #    lines.append(f"- {note['id']}: {preview}")#
 
-        yield event.plain_result("\n".join(lines))
+        #yield event.plain_result("\n".join(lines))
 
     @research_group.command("clear")
     async def research_clear(self, event: AstrMessageEvent, confirm: str | None = None):
