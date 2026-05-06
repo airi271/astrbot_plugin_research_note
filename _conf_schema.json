@@ -1,0 +1,28 @@
+{
+  "top_k": {
+    "description": "質問時に使う関連資料の数",
+    "type": "int",
+    "default": 3,
+    "minimum": 1,
+    "maximum": 10
+  },
+  "max_note_chars": {
+    "description": "1件の資料からプロンプトに入れる最大文字数",
+    "type": "int",
+    "default": 1200,
+    "minimum": 100,
+    "maximum": 10000
+  },
+  "max_add_chars": {
+    "description": "1回で追加できる資料の最大文字数",
+    "type": "int",
+    "default": 8000,
+    "minimum": 100,
+    "maximum": 50000
+  },
+  "strict_grounding": {
+    "description": "資料にないことを推測しないよう強く指示する",
+    "type": "bool",
+    "default": true
+  }
+}
