@@ -1,0 +1,184 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="980" viewBox="0 0 1400 980" role="img" aria-labelledby="title desc">
+  <title id="title">Research Note centered AstrBot architecture</title>
+  <desc id="desc">Architecture diagram showing users, messaging platforms, AstrBot core, Research Note plugin, storage, LLM providers, tools, MCP, web search, knowledge base, and multi-agent flow.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f6f8fb; }
+      .panel { fill: #ffffff; stroke: #d5dde8; stroke-width: 2; rx: 22; }
+      .panel-blue { fill: #edf6ff; stroke: #8dc3f7; stroke-width: 2; rx: 22; }
+      .panel-green { fill: #effaf3; stroke: #8ed7a3; stroke-width: 2; rx: 22; }
+      .panel-purple { fill: #f5f1ff; stroke: #b8a3ef; stroke-width: 2; rx: 22; }
+      .panel-orange { fill: #fff7ed; stroke: #f0b16d; stroke-width: 2; rx: 22; }
+      .panel-red { fill: #fff1f2; stroke: #f1a0aa; stroke-width: 2; rx: 22; }
+      .box { fill: #ffffff; stroke: #c9d3df; stroke-width: 1.7; rx: 14; }
+      .box-blue { fill: #ffffff; stroke: #5aa7ea; stroke-width: 2; rx: 14; }
+      .box-green { fill: #ffffff; stroke: #4fb46d; stroke-width: 2; rx: 14; }
+      .box-purple { fill: #ffffff; stroke: #8b72d9; stroke-width: 2; rx: 14; }
+      .box-orange { fill: #ffffff; stroke: #de8b32; stroke-width: 2; rx: 14; }
+      .box-red { fill: #ffffff; stroke: #de6675; stroke-width: 2; rx: 14; }
+      .title { font: 700 30px sans-serif; fill: #192434; }
+      .subtitle { font: 500 15px sans-serif; fill: #526173; }
+      .section { font: 700 18px sans-serif; fill: #243244; }
+      .label { font: 700 15px sans-serif; fill: #243244; }
+      .small { font: 500 12px sans-serif; fill: #526173; }
+      .tiny { font: 500 11px sans-serif; fill: #617084; }
+      .arrow { stroke: #62748a; stroke-width: 2.2; fill: none; marker-end: url(#arrowHead); }
+      .arrow-blue { stroke: #317fc2; stroke-width: 2.4; fill: none; marker-end: url(#arrowHeadBlue); }
+      .arrow-green { stroke: #2e9854; stroke-width: 2.4; fill: none; marker-end: url(#arrowHeadGreen); }
+      .arrow-purple { stroke: #7458cb; stroke-width: 2.4; fill: none; marker-end: url(#arrowHeadPurple); }
+      .arrow-dash { stroke: #7c8a9b; stroke-width: 2; stroke-dasharray: 7 6; fill: none; marker-end: url(#arrowHead); }
+      .phase { font: 700 11px sans-serif; fill: #ffffff; }
+      .badge-blue { fill: #317fc2; rx: 8; }
+      .badge-green { fill: #2e9854; rx: 8; }
+      .badge-purple { fill: #7458cb; rx: 8; }
+      .badge-orange { fill: #c96d1d; rx: 8; }
+      .badge-red { fill: #c44858; rx: 8; }
+    </style>
+    <marker id="arrowHead" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M 0 0 L 12 4 L 0 8 z" fill="#62748a" />
+    </marker>
+    <marker id="arrowHeadBlue" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M 0 0 L 12 4 L 0 8 z" fill="#317fc2" />
+    </marker>
+    <marker id="arrowHeadGreen" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M 0 0 L 12 4 L 0 8 z" fill="#2e9854" />
+    </marker>
+    <marker id="arrowHeadPurple" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M 0 0 L 12 4 L 0 8 z" fill="#7458cb" />
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1400" height="980" />
+
+  <text class="title" x="64" y="58">Research Note Plugin Centered Architecture</text>
+  <text class="subtitle" x="64" y="84">AstrBot の会話、LLM、Tool、MCP、Web Search、保存層を Research Note を中心に接続する構造</text>
+
+  <rect class="panel" x="56" y="124" width="210" height="210" />
+  <text class="section" x="82" y="158">User Side</text>
+  <rect class="box" x="82" y="180" width="158" height="56" />
+  <text class="label" x="103" y="205">User</text>
+  <text class="small" x="103" y="224">research commands</text>Slack
+  <rect class="box" x="82" y="254" width="158" height="56" />
+  <text class="label" x="103" y="279">Chat Platform</text>
+  <text class="small" x="103" y="298">Slack / Telegram / etc.</text>
+
+  <rect class="panel-blue" x="326" y="110" width="294" height="250" />
+  <text class="section" x="354" y="144">AstrBot Core</text>
+  <rect class="box-blue" x="354" y="166" width="238" height="48" />
+  <text class="label" x="374" y="194">Message Event Pipeline</text>
+  <rect class="box-blue" x="354" y="228" width="238" height="48" />
+  <text class="label" x="374" y="256">Plugin Loader / Star</text>
+  <rect class="box-blue" x="354" y="290" width="238" height="48" />
+  <text class="label" x="374" y="318">Context API</text>
+
+  <rect class="panel-green" x="690" y="96" width="390" height="314" />
+  <text class="section" x="722" y="132">Research Note Plugin</text>
+  <text class="small" x="722" y="154">data/plugins/astrbot_plugin_research_note</text>
+  <rect class="box-green" x="722" y="176" width="150" height="58" />
+  <text class="label" x="742" y="201">Commands</text>
+  <text class="small" x="742" y="220">add / ask / search</text>
+  <rect class="box-green" x="900" y="176" width="150" height="58" />
+  <text class="label" x="920" y="201">Agent Mode</text>
+  <text class="small" x="920" y="220">tool_loop_agent</text>
+  <rect class="box-green" x="722" y="252" width="150" height="58" />
+  <text class="label" x="742" y="277">Search Layer</text>
+  <text class="small" x="742" y="296">keyword / embedding</text>
+  <rect class="box-green" x="900" y="252" width="150" height="58" />
+  <text class="label" x="920" y="277">Prompt Layer</text>
+  <text class="small" x="920" y="296">citation / unknowns</text>
+  <rect class="box-green" x="722" y="328" width="328" height="58" />
+  <text class="label" x="742" y="353">Research Tools</text>
+  <text class="small" x="742" y="372">research_search / get_document / add_text</text>
+
+  <rect class="panel-orange" x="1134" y="126" width="218" height="206" />
+  <text class="section" x="1162" y="160">LLM Providers</text>
+  <rect class="box-orange" x="1162" y="184" width="162" height="48" />
+  <text class="label" x="1182" y="212">Chat Model</text>
+  <rect class="box-orange" x="1162" y="246" width="162" height="48" />
+  <text class="label" x="1182" y="274">Embedding Model</text>
+
+  <rect class="panel-purple" x="78" y="430" width="324" height="312" />
+  <text class="section" x="110" y="466">Research Storage</text>
+  <rect class="box-purple" x="110" y="492" width="262" height="54" />
+  <text class="label" x="130" y="516">research_store.json</text>
+  <text class="small" x="130" y="535">first practical backend</text>
+  <rect class="box-purple" x="110" y="562" width="120" height="54" />
+  <text class="label" x="130" y="586">Documents</text>
+  <text class="small" x="130" y="605">title / source</text>
+  <rect class="box-purple" x="252" y="562" width="120" height="54" />
+  <text class="label" x="272" y="586">Chunks</text>
+  <text class="small" x="272" y="605">content / vector</text>
+  <rect class="box-purple" x="110" y="634" width="262" height="54" />
+  <text class="label" x="130" y="658">Future Backend</text>
+  <text class="small" x="130" y="677">SQLite / Milvus when needed</text>
+
+  <rect class="panel-blue" x="462" y="454" width="270" height="264" />
+  <text class="section" x="492" y="490">AstrBot Tool System</text>
+  <rect class="box-blue" x="492" y="514" width="210" height="48" />
+  <text class="label" x="512" y="542">FunctionToolManager</text>
+  <rect class="box-blue" x="492" y="576" width="210" height="48" />
+  <text class="label" x="512" y="604">ToolSet</text>
+  <rect class="box-blue" x="492" y="638" width="210" height="48" />
+  <text class="label" x="512" y="666">Built-in Tools</text>
+
+  <rect class="panel-red" x="790" y="472" width="264" height="230" />
+  <text class="section" x="820" y="508">External Research</text>
+  <rect class="box-red" x="820" y="532" width="204" height="48" />
+  <text class="label" x="840" y="560">Web Search</text>
+  <rect class="box-red" x="820" y="594" width="204" height="48" />
+  <text class="label" x="840" y="622">MCP Tools</text>
+  <rect class="box-red" x="820" y="656" width="204" height="48" />
+  <text class="label" x="840" y="684">Knowledge Base</text>
+
+  <rect class="panel-green" x="1110" y="446" width="242" height="298" />
+  <text class="section" x="1140" y="482">Multi-Agent</text>
+  <rect class="box-green" x="1140" y="506" width="184" height="42" />
+  <text class="label" x="1160" y="533">Retriever</text>
+  <rect class="box-green" x="1140" y="562" width="184" height="42" />
+  <text class="label" x="1160" y="589">Reader</text>
+  <rect class="box-green" x="1140" y="618" width="184" height="42" />
+  <text class="label" x="1160" y="645">Critic</text>
+  <rect class="box-green" x="1140" y="674" width="184" height="42" />
+  <text class="label" x="1160" y="701">Writer</text>
+
+  <rect class="panel" x="90" y="806" width="1210" height="110" />
+  <text class="section" x="122" y="840">Main Data Flow</text>
+  <text class="small" x="122" y="866">1. User sends /research command or normal request.</text>
+  <text class="small" x="408" y="866">2. AstrBot routes event to Research Note.</text>
+  <text class="small" x="704" y="866">3. Plugin searches chunks and builds context pack.</text>
+  <text class="small" x="1048" y="866">4. LLM answers with sources.</text>
+  <text class="small" x="122" y="892">Advanced path: /research agent can call Research Tools first, then optionally allowed Web/MCP tools, then Multi-Agent roles in later phases.</text>
+
+  <path class="arrow" d="M 161 236 L 161 254" />
+  <path class="arrow-blue" d="M 240 282 C 278 282 300 252 354 252" />
+  <path class="arrow-blue" d="M 592 252 C 628 252 650 253 722 253" />
+  <path class="arrow-green" d="M 872 205 L 900 205" />
+  <path class="arrow-green" d="M 797 234 L 797 252" />
+  <path class="arrow-green" d="M 975 234 L 975 252" />
+  <path class="arrow-green" d="M 797 310 L 797 328" />
+  <path class="arrow-green" d="M 975 310 L 975 328" />
+  <path class="arrow-orange" d="M 1050 205 C 1080 205 1110 208 1162 208" style="stroke:#de8b32;stroke-width:2.4;fill:none;marker-end:url(#arrowHead);" />
+  <path class="arrow-orange" d="M 872 281 C 1000 281 1060 270 1162 270" style="stroke:#de8b32;stroke-width:2.4;fill:none;marker-end:url(#arrowHead);" />
+  <path class="arrow-purple" d="M 722 356 C 568 380 420 462 372 519" />
+  <path class="arrow-purple" d="M 372 589 C 482 588 608 470 722 281" />
+  <path class="arrow-blue" d="M 886 386 C 828 468 738 538 702 538" />
+  <path class="arrow-blue" d="M 702 600 C 740 600 772 590 820 556" />
+  <path class="arrow-blue" d="M 702 600 C 748 604 774 614 820 618" />
+  <path class="arrow-blue" d="M 702 638 C 746 668 776 680 820 680" />
+  <path class="arrow-green" d="M 1050 356 C 1102 400 1140 456 1232 506" />
+  <path class="arrow-dash" d="M 1232 716 C 1120 800 934 770 886 386" />
+  <path class="arrow-dash" d="M 1054 588 C 1082 588 1106 588 1140 588" />
+
+  <rect class="badge-green" x="724" y="398" width="84" height="22" />
+  <text class="phase" x="738" y="413">Phase 1-5</text>
+  <rect class="badge-red" x="820" y="716" width="84" height="22" />
+  <text class="phase" x="834" y="731">Phase 6-8</text>
+  <rect class="badge-green" x="1140" y="728" width="88" height="22" />
+  <text class="phase" x="1154" y="743">Phase 9</text>
+  <rect class="badge-purple" x="110" y="700" width="92" height="22" />
+  <text class="phase" x="122" y="715">Phase 11</text>
+  <rect class="badge-blue" x="218" y="700" width="92" height="22" />
+  <text class="phase" x="230" y="715">Phase 12</text>
+
+  <text class="tiny" x="64" y="954">Generated for astrbot_plugin_research_note. Solid arrows show normal data/tool flow. Dashed arrows show later-phase orchestration and feedback paths.</text>
+</svg>
