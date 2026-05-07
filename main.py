@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from .store import NoteStore
-from .search import search_notes
+from .search import search_notes, search_notes_by_embedding
 from .prompts import build_answer_prompt
 @register("ResearchNote", "airi271", "Research note assistant for source-grounded question answering.", "0.1.0")
 class ResearchNotePlugin(Star):
@@ -32,6 +32,13 @@ class ResearchNotePlugin(Star):
         if raw_text.startswith(prefix2):
             return raw_text[len(prefix2):].strip()
         return ""
+    def _get_embedding_provider(self):
+        providers = self.context.get_all_embedding_providers()
+        if not providers:
+            logger.error("No embedding provider found.", exc_info=True)
+            return None
+        return providers[0]
+
         
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
@@ -72,6 +79,10 @@ class ResearchNotePlugin(Star):
     @research_group.command("add")
     async def research_add(self, event: AstrMessageEvent, content: str=""):
         """資料を追加します。"""
+        embedding = None
+        embedding_provider = self._get_embedding_provider()
+        if embedding_provider:
+            embedding = await embedding_provider.get_embedding(content)
         content = self._extract_research_tail(event)
         if not content:
             yield event.plain_result("追加する資料テキストを入力してください。")
@@ -85,6 +96,7 @@ class ResearchNotePlugin(Star):
             "id": self._next_note_id(notes),
             "content": content,
             "created_at": datetime.now().isoformat(timespec="seconds"),
+            "embedding": embedding,
         }
         notes.append(note)
         self.store.save_notes(notes)
@@ -109,6 +121,7 @@ class ResearchNotePlugin(Star):
     @research_group.command("ask")
     async def research_ask(self, event: AstrMessageEvent, question: str=""):
         """資料に基づいて質問します。"""
+        embedding_provider = self._get_embedding_provider()
         question = self._extract_research_tail(event)
         if not question:
             yield event.plain_result("質問を入力してください。")
@@ -120,7 +133,12 @@ class ResearchNotePlugin(Star):
             return
         
         top_k = int(self.config.get("top_k", 3))
-        matched_notes = search_notes(question, notes, top_k=top_k)
+        if not embedding_provider:
+            matched_notes = search_notes(question, notes, top_k=top_k)
+        else:
+            query_embedding = await embedding_provider.get_embedding(question)
+            matched_notes = search_notes_by_embedding(query_embedding, notes, top_k=top_k)
+            logger.info(f"Found {len(matched_notes)} matched notes for the question using embedding search.")
         if not matched_notes:
             yield event.plain_result("関連する資料が見つかりませんでした。")
             return
