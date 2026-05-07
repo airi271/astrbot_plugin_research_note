@@ -4,6 +4,12 @@ Research Note is a source-grounded research assistant plugin for [AstrBot](https
 
 This plugin is being developed toward a lightweight source-grounded research workflow inside AstrBot: collect materials in chat, search them, ask grounded questions, and gradually extend the system with chunking, citations, tools, MCP, web research, and multi-agent workflows.
 
+## Architecture
+
+![Research Note Architecture](./docs/practical_steps/research_note_architecture.svg)
+
+See `docs/practical_steps/architecture_overview.md` for a short explanation of the diagram.
+
 ## Features
 
 - Save research materials with `/research add <text>`.
