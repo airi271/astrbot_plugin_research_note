@@ -16,7 +16,7 @@
 1. `01_python_for_plugins.md`: プラグイン開発で必要な Python 基礎。
 2. `02_astrbot_plugin_terms.md`: AstrBot の用語と仕組み。
 3. `03_yield_async_event.md`: `yield`、`async/await`、イベント処理。
-4. `04_rag_terms.md`: RAG と NotebookLM 風機能の用語。
+4. `04_rag_terms.md`: RAG と根拠付き研究補助機能の用語。
 5. `05_developer_workflow.md`: 開発者の作業方法、調べ方、デバッグ方法。
 6. `06_code_english_glossary.md`: コード中によく出る英語の意味。
 
