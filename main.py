@@ -93,7 +93,7 @@ class ResearchNotePlugin(Star):
     async def research_add(self, event: AstrMessageEvent, content: str = ""):
         """資料を追加します。"""
         # 先读取并检查文本，再生成 embedding。
-        content = self._extract_research_tail(event) or content.strip()
+        content = self._extract_research_tail(event)
         if not content:
             yield event.plain_result("追加する資料テキストを入力してください。")
             return
@@ -141,7 +141,7 @@ class ResearchNotePlugin(Star):
     async def research_show(self, event: AstrMessageEvent, note_id: str = ""):
         """保存済み資料を表示します。"""
         # 显示单条资料及其 metadata，方便检查资料和引用。
-        note_id = self._normalize_note_id(note_id or self._extract_research_tail(event))
+        note_id = self._normalize_note_id(self._extract_research_tail(event))
         if not note_id:
             yield event.plain_result("資料IDを指定してください。")
             return
@@ -168,7 +168,7 @@ class ResearchNotePlugin(Star):
     async def research_ask(self, event: AstrMessageEvent, question: str = ""):
         """資料に基づいて質問します。"""
         # ask 是固定 RAG 流程：先检索资料，再构造 prompt，最后调用 LLM。
-        question = self._extract_research_tail(event) or question.strip()
+        question = self._extract_research_tail(event)
         if not question:
             yield event.plain_result("質問を入力してください。")
             return
@@ -243,7 +243,7 @@ class ResearchNotePlugin(Star):
                 return
 
         note_id = self._normalize_note_id(
-            note_id or raw_tail.replace("--confirm", "").strip()
+            raw_tail.replace("--confirm", "").strip()
         )
         if not note_id:
             yield event.plain_result("資料IDを指定してください。")
