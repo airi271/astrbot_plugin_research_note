@@ -208,3 +208,124 @@ embedding を別 table または別ファイルに分けることを検討しま
 - export/import の方針がある。
 - SQLite へ進む判断基準が明確。
 - store の責任が command から分離されている。
+
+## 実装例
+
+### backup.py
+
+まずは JSON backup を安全に作ります。
+
+```python
+from datetime import datetime
+from pathlib import Path
+from shutil import copy2
+
+
+def create_backup(store_file: Path, backup_dir: Path) -> Path | None:
+    # No backup is needed if the store file does not exist yet.
+    if not store_file.exists():
+        return None
+
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file = backup_dir / f"{store_file.stem}.{timestamp}.bak{store_file.suffix}"
+    copy2(store_file, backup_file)
+    return backup_file
+```
+
+### /research backup
+
+```python
+@research_group.command("backup")
+async def research_backup(self, event: AstrMessageEvent):
+    # Backup is read-only from the user's perspective and safe to run anytime.
+    backup_file = create_backup(
+        self.store.store_file,
+        self.data_dir / "backups",
+    )
+    if backup_file is None:
+        yield event.plain_result("保存ファイルがまだないため、backup は作成されませんでした。")
+        return
+    yield event.plain_result(f"backup を作成しました: {backup_file.name}")
+```
+
+### storage/base.py
+
+SQLite に進む前に、command が依存する interface を決めます。
+
+```python
+from abc import ABC, abstractmethod
+
+
+class ResearchStoreBase(ABC):
+    @abstractmethod
+    def list_documents(self) -> list[dict]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_document(self, doc_id: str) -> dict | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def add_document(self, document: dict, chunks: list[dict]) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_document(self, doc_id: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def search_chunks_data(self) -> list[dict]:
+        raise NotImplementedError
+```
+
+### storage/sqlite_store.py の最小形
+
+```python
+import json
+import sqlite3
+from pathlib import Path
+
+
+class SQLiteResearchStore:
+    def __init__(self, db_file: Path):
+        self.db_file = db_file
+        self.db_file.parent.mkdir(parents=True, exist_ok=True)
+        self._init_schema()
+
+    def _connect(self):
+        return sqlite3.connect(self.db_file)
+
+    def _init_schema(self) -> None:
+        # Store embeddings as JSON text first; optimize later only if needed.
+        with self._connect() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS documents (
+                    id TEXT PRIMARY KEY,
+                    data TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chunks (
+                    id TEXT PRIMARY KEY,
+                    doc_id TEXT NOT NULL,
+                    data TEXT NOT NULL
+                )
+                """
+            )
+
+    def add_document(self, document: dict, chunks: list[dict]) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO documents (id, data) VALUES (?, ?)",
+                (document["id"], json.dumps(document, ensure_ascii=False)),
+            )
+            for chunk in chunks:
+                conn.execute(
+                    "INSERT OR REPLACE INTO chunks (id, doc_id, data) VALUES (?, ?, ?)",
+                    (chunk["id"], chunk["doc_id"], json.dumps(chunk, ensure_ascii=False)),
+                )
+```

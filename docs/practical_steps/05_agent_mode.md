@@ -237,3 +237,87 @@ system prompt に「保存済み資料に基づく」「資料にないことは
 - 回答に citation がある。
 - max_steps と timeout が設定化されている。
 - `/research ask` も引き続き動く。
+
+## 実装例
+
+### agent_prompts.py
+
+agent 用 prompt は通常の `/research ask` よりも、tool をどう使うかを強く書きます。
+
+```python
+def build_research_agent_system_prompt() -> str:
+    # Keep the agent focused on saved Research Note sources.
+    return """あなたは Research Note の研究補助 agent です。
+ユーザーの依頼が保存済み資料に関係する場合、まず research_search を使って関連資料を探してください。
+必要なら research_get_document で資料の概要を確認してください。
+回答は保存済み資料に基づいてください。
+資料にないことは推測せず、「資料からは分かりません」と書いてください。
+根拠には doc_id/chunk_id を付けてください。
+必要以上に tool を呼ばないでください。
+"""
+```
+
+### /research agent
+
+`tool_loop_agent()` の引数名は AstrBot のバージョンに合わせて確認してください。構造としては以下です。
+
+```python
+@research_group.command("agent")
+async def research_agent(self, event: AstrMessageEvent, task: str = ""):
+    # Agent mode lets the LLM decide when to call Research Note tools.
+    task = self._extract_research_tail(event) or task.strip()
+    if not task:
+        yield event.plain_result("agent に依頼する内容を入力してください。")
+        return
+
+    try:
+        provider_id = await self.context.get_current_chat_provider_id(
+            umo=event.unified_msg_origin
+        )
+    except Exception:
+        logger.error("Failed to get current chat provider.", exc_info=True)
+        yield event.plain_result("利用可能な LLM provider が見つかりません。")
+        return
+
+    tools = ToolSet([
+        self.research_search_tool,
+        self.research_get_document_tool,
+    ])
+
+    try:
+        llm_resp = await self.context.tool_loop_agent(
+            event=event,
+            chat_provider_id=provider_id,
+            prompt=task,
+            system_prompt=build_research_agent_system_prompt(),
+            tools=tools,
+            max_steps=int(self.config.get("agent_max_steps", 8)),
+            tool_call_timeout=int(self.config.get("agent_tool_call_timeout", 60)),
+        )
+    except Exception:
+        logger.error("Research agent failed.", exc_info=True)
+        yield event.plain_result("Research agent の実行に失敗しました。ログを確認してください。")
+        return
+
+    answer = llm_resp.completion_text if llm_resp else "Research agent は回答を生成できませんでした。"
+    yield event.plain_result(answer)
+```
+
+### 設定例
+
+```json
+"agent_max_steps": {
+  "description": "research agent が tool を呼ぶ最大ステップ数",
+  "type": "int",
+  "default": 8,
+  "minimum": 1,
+  "maximum": 30
+},
+"agent_tool_call_timeout": {
+  "description": "research agent の tool 呼び出し timeout 秒",
+  "type": "int",
+  "default": 60,
+  "minimum": 5,
+  "maximum": 300
+}
+```

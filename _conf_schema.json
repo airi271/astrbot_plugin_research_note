@@ -24,5 +24,10 @@
     "description": "資料にないことを推測しないよう強く指示する",
     "type": "bool",
     "default": true
+  },
+  "show_debug_prompt": {
+    "description": "回答に実際の prompt を表示する",
+    "type": "bool",
+    "default": false
   }
 }

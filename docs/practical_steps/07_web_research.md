@@ -215,3 +215,81 @@ Web Candidates:
 - `/research agent` と Web 使用 mode が分かれている。
 - Web結果を勝手に保存しない。
 - 保存済み資料と Web情報が回答上で区別される。
+
+## 実装例
+
+### tool_selectors.py
+
+allowlist にある tool だけを取得します。実際の tool manager API 名は AstrBot 側で確認してください。
+
+```python
+from astrbot.api import logger
+
+
+def select_allowed_tools(context, allowed_names: list[str]) -> list:
+    # Never pass every available tool to a research agent.
+    tool_manager = context.get_llm_tool_manager()
+    selected = []
+    for name in allowed_names:
+        tool = tool_manager.get_tool(name)
+        if tool is None:
+            logger.warning("Configured tool not found: %s", name)
+            continue
+        selected.append(tool)
+    return selected
+```
+
+### Web 用 prompt
+
+保存済み資料と Web 情報を混ぜないようにします。
+
+```python
+def build_web_research_system_prompt() -> str:
+    # Web results are external candidates, not saved Research Note sources.
+    return """あなたは Research Note の Web research agent です。
+まず research_search で保存済み資料を確認してください。
+保存済み資料だけでは不足する場合のみ、許可された Web Search tool を使ってください。
+Web Search の結果は Web Candidates として扱い、Saved Sources と区別してください。
+Web の情報を Research Note に保存する場合は、ユーザー確認が必要です。
+勝手に保存しないでください。
+"""
+```
+
+### /research agent_web
+
+通常 agent とは別 command にします。
+
+```python
+@research_group.command("agent_web")
+async def research_agent_web(self, event: AstrMessageEvent, task: str = ""):
+    # Web mode is explicit because it can call external services.
+    if not self.config.get("enable_web_research", False):
+        yield event.plain_result("Web research は設定で無効です。")
+        return
+
+    task = self._extract_research_tail(event) or task.strip()
+    if not task:
+        yield event.plain_result("agent_web に依頼する内容を入力してください。")
+        return
+
+    allowed_names = list(self.config.get("allowed_web_tools", []))
+    web_tools = select_allowed_tools(self.context, allowed_names)
+    tools = ToolSet([
+        self.research_search_tool,
+        self.research_get_document_tool,
+        *web_tools,
+    ])
+
+    llm_resp = await self.context.tool_loop_agent(
+        event=event,
+        chat_provider_id=await self.context.get_current_chat_provider_id(
+            umo=event.unified_msg_origin
+        ),
+        prompt=task,
+        system_prompt=build_web_research_system_prompt(),
+        tools=tools,
+        max_steps=int(self.config.get("agent_max_steps", 8)),
+        tool_call_timeout=int(self.config.get("agent_tool_call_timeout", 60)),
+    )
+    yield event.plain_result(llm_resp.completion_text if llm_resp else "回答を生成できませんでした。")
+```

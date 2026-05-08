@@ -49,7 +49,10 @@ docs/practical_steps/architecture_overview.md
 /research help
 /research add <text>
 /research list
+/research show <note_id>
 /research ask <question>
+/research delete <note_id> --confirm
+/research reindex
 /research clear --confirm
 ```
 
@@ -61,6 +64,7 @@ The plugin currently supports these configuration items:
 - `max_note_chars`: Maximum characters included from each note in the prompt.
 - `max_add_chars`: Maximum characters allowed in one `/research add` call.
 - `strict_grounding`: Whether to strongly restrict answers to stored sources.
+- `show_debug_prompt`: Whether to include the generated LLM prompt in `/research ask` output.
 
 ## Development Roadmap
 

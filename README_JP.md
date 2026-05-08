@@ -45,7 +45,10 @@ docs/practical_steps/architecture_overview.md
 /research help
 /research add <text>
 /research list
+/research show <note_id>
 /research ask <question>
+/research delete <note_id> --confirm
+/research reindex
 /research clear --confirm
 ```
 
@@ -63,10 +66,28 @@ docs/practical_steps/architecture_overview.md
 /research list
 ```
 
+1件の資料を表示します。
+
+```text
+/research show note_001
+```
+
 資料に基づいて質問します。
 
 ```text
 /research ask RAG とは何ですか？
+```
+
+指定した資料を削除します。
+
+```text
+/research delete note_001 --confirm
+```
+
+既存資料の embedding を再作成します。
+
+```text
+/research reindex
 ```
 
 資料をすべて削除します。
@@ -95,6 +116,7 @@ docs/practical_steps/architecture_overview.md
 - `max_note_chars`: 1件の資料からプロンプトに入れる最大文字数。
 - `max_add_chars`: 1回で追加できる資料の最大文字数。
 - `strict_grounding`: 資料にないことを推測しないよう強く指示するかどうか。
+- `show_debug_prompt`: `/research ask` の出力に実際の prompt を表示するかどうか。
 
 ## 開発ロードマップ
 

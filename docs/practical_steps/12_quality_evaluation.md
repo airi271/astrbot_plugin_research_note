@@ -209,3 +209,102 @@ LLM回答の自動採点は難しいです。まず source と禁止語の確認
 - 検索結果を比較できる。
 - citation の手動チェック項目がある。
 - prompt や search 変更前後で regression を確認できる。
+
+## 実装例
+
+### evals/dataset.json
+
+最初は5問で十分です。
+
+```json
+[
+  {
+    "id": "q001",
+    "question": "Transformer は何を使いますか？",
+    "expected_sources": ["doc_001/chunk_001"],
+    "answer_points": ["self-attention", "attention"],
+    "must_not_include": ["CNN が中心"]
+  },
+  {
+    "id": "q_hallucination_001",
+    "question": "この資料の実験で使われた GPU は何ですか？",
+    "expected_sources": [],
+    "answer_points": ["資料からは分かりません"],
+    "must_not_include": ["A100", "V100", "RTX"]
+  }
+]
+```
+
+### evals/run_eval.py
+
+検索評価だけなら LLM を呼ばずに実行できます。
+
+```python
+import argparse
+import json
+from pathlib import Path
+
+from astrbot_plugin_research_note.search import hybrid_search_chunks
+
+
+def load_json(path: Path):
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def source_id(result: dict) -> str:
+    chunk = result["chunk"]
+    return f"{chunk.get('doc_id')}/{chunk.get('id')}"
+
+
+def run_search_eval(dataset: list[dict], store_data: dict) -> int:
+    # Return number of failures so CI or shell scripts can detect regression.
+    failures = 0
+    for item in dataset:
+        results = hybrid_search_chunks(
+            query=item["question"],
+            documents=store_data["documents"],
+            chunks=store_data["chunks"],
+            query_embedding=None,
+            top_k=3,
+            min_score=0.0,
+        )
+        got = [source_id(result) for result in results]
+        expected = item.get("expected_sources", [])
+
+        if expected and not any(source in got for source in expected):
+            failures += 1
+            print(f"{item['id']}: FAIL expected={expected} got={got}")
+        else:
+            print(f"{item['id']}: PASS top_3={got}")
+    return failures
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", default="evals/dataset.json")
+    parser.add_argument("--store", default="data/research_store.json")
+    args = parser.parse_args()
+
+    dataset = load_json(Path(args.dataset))
+    store_data = load_json(Path(args.store))
+    failures = run_search_eval(dataset, store_data)
+    raise SystemExit(1 if failures else 0)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### evals/manual_checklist.md
+
+```markdown
+# Manual Evaluation Checklist
+
+- The answer is grounded in saved sources.
+- Each important claim has a nearby citation.
+- Sources contain the chunks actually used.
+- Unknowns are listed when the source does not answer the question.
+- Web or MCP results are not mixed with saved sources.
+- The answer is concise enough to be useful.
+```

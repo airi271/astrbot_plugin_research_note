@@ -250,3 +250,165 @@ tool description に「研究資料に関する質問では使う」と明記し
 - tool 返却が短い JSON 文字列になっている。
 - command と tool が同じ検索 helper を使う。
 - 次の `/research agent` で渡せる状態になっている。
+
+## 実装例
+
+### tool_utils.py
+
+command と tool の共通検索関数です。
+
+```python
+async def search_research_store(
+    store,
+    query: str,
+    top_k: int,
+    embedding_provider=None,
+    keyword_weight: float = 0.4,
+    embedding_weight: float = 0.6,
+    min_score: float = 0.05,
+) -> list[dict]:
+    # Keep command and tool retrieval behavior identical.
+    data = store.load_store()
+    query_embedding = None
+    if embedding_provider:
+        query_embedding = await embedding_provider.get_embedding(query)
+
+    return hybrid_search_chunks(
+        query=query,
+        documents=data["documents"],
+        chunks=data["chunks"],
+        query_embedding=query_embedding,
+        top_k=top_k,
+        keyword_weight=keyword_weight,
+        embedding_weight=embedding_weight,
+        min_score=min_score,
+    )
+
+
+def compact_search_results(results: list[dict], preview_chars: int = 300) -> dict:
+    # Tool output should be short enough for the LLM to read.
+    compact = []
+    for result in results:
+        chunk = result["chunk"]
+        document = result["document"]
+        compact.append(
+            {
+                "doc_id": chunk.get("doc_id"),
+                "chunk_id": chunk.get("id"),
+                "title": document.get("title", ""),
+                "score": round(float(result.get("hybrid_score", 0.0)), 4),
+                "reason": result.get("match_reason", ""),
+                "preview": str(chunk.get("content", ""))[:preview_chars],
+            }
+        )
+    return {"results": compact}
+```
+
+### tools/research_search.py
+
+実際の `FunctionTool` への変換部分は AstrBot の実装に合わせて調整します。
+
+```python
+import json
+
+from astrbot.api import logger
+
+from ..tool_utils import compact_search_results, search_research_store
+
+
+class ResearchSearchTool:
+    name = "research_search"
+    description = "Search saved Research Note documents and return cited chunks."
+
+    parameters = {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "Search query or research question."},
+            "top_k": {"type": "integer", "description": "Maximum number of chunks to return."},
+        },
+        "required": ["query"],
+    }
+
+    def __init__(self, store, config, get_embedding_provider):
+        self.store = store
+        self.config = config
+        self.get_embedding_provider = get_embedding_provider
+
+    async def call(self, query: str, top_k: int | None = None) -> str:
+        # Return JSON so the LLM can parse fields reliably.
+        logger.info("research_search tool called: %s", query)
+        results = await search_research_store(
+            store=self.store,
+            query=query,
+            top_k=top_k or int(self.config.get("top_k", 5)),
+            embedding_provider=self.get_embedding_provider(),
+            keyword_weight=float(self.config.get("keyword_weight", 0.4)),
+            embedding_weight=float(self.config.get("embedding_weight", 0.6)),
+            min_score=float(self.config.get("min_score", 0.05)),
+        )
+        return json.dumps(compact_search_results(results), ensure_ascii=False)
+```
+
+### tools/research_get_document.py
+
+Document 全文ではなく、metadata と chunk preview を返します。
+
+```python
+import json
+
+
+class ResearchGetDocumentTool:
+    name = "research_get_document"
+    description = "Get metadata and chunk previews for a saved Research Note document."
+
+    parameters = {
+        "type": "object",
+        "properties": {"doc_id": {"type": "string", "description": "Document ID."}},
+        "required": ["doc_id"],
+    }
+
+    def __init__(self, store, preview_chars: int = 300):
+        self.store = store
+        self.preview_chars = preview_chars
+
+    async def call(self, doc_id: str) -> str:
+        # Avoid returning full long documents through tool output.
+        data = self.store.load_store()
+        document = next((doc for doc in data["documents"] if doc.get("id") == doc_id), None)
+        if not document:
+            return json.dumps({"error": "document_not_found", "doc_id": doc_id}, ensure_ascii=False)
+
+        chunks = [chunk for chunk in data["chunks"] if chunk.get("doc_id") == doc_id]
+        return json.dumps(
+            {
+                "document": document,
+                "chunks": [
+                    {
+                        "chunk_id": chunk.get("id"),
+                        "index": chunk.get("index"),
+                        "preview": str(chunk.get("content", ""))[: self.preview_chars],
+                    }
+                    for chunk in chunks
+                ],
+            },
+            ensure_ascii=False,
+        )
+```
+
+### plugin で登録する形
+
+```python
+def _register_research_tools(self):
+    # Register read-only tools first. Add write tools later with confirmation.
+    self.research_search_tool = ResearchSearchTool(
+        self.store,
+        self.config,
+        self._get_embedding_provider,
+    )
+    self.research_get_document_tool = ResearchGetDocumentTool(self.store)
+
+    self.context.add_llm_tools(
+        self.research_search_tool,
+        self.research_get_document_tool,
+    )
+```

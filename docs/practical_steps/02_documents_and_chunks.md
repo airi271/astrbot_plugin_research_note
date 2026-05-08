@@ -372,3 +372,201 @@ start = start + chunk_size - chunk_overlap
 - `/research ask` が chunk 単位で検索する。
 - 回答の source に `doc_id` と `chunk_id` が出る。
 - 旧 `research_notes.json` から新形式へ移行できる。
+
+## 実装例
+
+ここでは、Phase 1 の note 形式から、Document / Chunk 形式へ進むための最小コードを示します。
+
+### chunking.py
+
+まずは文字数ベースで分割します。見出しや段落単位の分割は後で追加します。
+
+```python
+def split_text_into_chunks(
+    text: str,
+    chunk_size: int = 800,
+    chunk_overlap: int = 120,
+) -> list[str]:
+    # Normalize line breaks so chunk boundaries are predictable.
+    text = text.replace("\r\n", "\n").strip()
+    if not text:
+        return []
+
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    if chunk_overlap < 0:
+        raise ValueError("chunk_overlap must not be negative")
+    if chunk_overlap >= chunk_size:
+        raise ValueError("chunk_overlap must be smaller than chunk_size")
+
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = min(start + chunk_size, len(text))
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        if end == len(text):
+            break
+        start = end - chunk_overlap
+
+    return chunks
+```
+
+### migrations.py
+
+旧 `note_001` を `doc_001` と `chunk_001` に変換します。
+
+```python
+def migrate_v1_notes_to_v2_store(notes: list[dict]) -> dict:
+    # Convert the old note list into the new document/chunk store.
+    documents = []
+    chunks = []
+
+    for index, note in enumerate(notes, start=1):
+        doc_id = f"doc_{index:03d}"
+        chunk_id = f"chunk_{index:03d}"
+        content = str(note.get("content", ""))
+        created_at = note.get("created_at")
+
+        documents.append(
+            {
+                "id": doc_id,
+                "project_id": "default",
+                "title": content.replace("\n", " ")[:40] or doc_id,
+                "source_type": "note_migration",
+                "source_uri": "",
+                "tags": [],
+                "created_at": created_at,
+                "updated_at": created_at,
+            }
+        )
+        chunks.append(
+            {
+                "id": chunk_id,
+                "doc_id": doc_id,
+                "index": 0,
+                "content": content,
+                "embedding": note.get("embedding"),
+                "metadata": {"migrated_from": note.get("id")},
+            }
+        )
+
+    return {"schema_version": 2, "documents": documents, "chunks": chunks}
+```
+
+### store.py
+
+常に同じ形の dict を返すようにします。
+
+```python
+import json
+from pathlib import Path
+
+from astrbot.api import logger
+
+from .migrations import migrate_v1_notes_to_v2_store
+
+
+EMPTY_STORE = {"schema_version": 2, "documents": [], "chunks": []}
+
+
+class ResearchStore:
+    def __init__(self, store_file: Path):
+        self.store_file = store_file
+        self.store_file.parent.mkdir(parents=True, exist_ok=True)
+
+    def load_store(self) -> dict:
+        # Keep command code simple by hiding file/schema problems here.
+        if not self.store_file.exists():
+            return dict(EMPTY_STORE)
+        try:
+            with self.store_file.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError:
+            logger.error("research_store.json is broken.", exc_info=True)
+            return dict(EMPTY_STORE)
+
+        if isinstance(data, list):
+            return migrate_v1_notes_to_v2_store(data)
+        if not isinstance(data, dict) or data.get("schema_version") != 2:
+            return dict(EMPTY_STORE)
+
+        data.setdefault("documents", [])
+        data.setdefault("chunks", [])
+        return data
+
+    def save_store(self, data: dict) -> None:
+        # Atomic write prevents partially written JSON from replacing good data.
+        tmp_file = self.store_file.with_suffix(".json.tmp")
+        with tmp_file.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        tmp_file.replace(self.store_file)
+```
+
+### add の内部処理
+
+`/research add` では Document を1件作り、本文を複数 Chunk に分けます。
+
+```python
+def next_prefixed_id(items: list[dict], prefix: str) -> str:
+    # Example: prefix="doc" -> doc_001, doc_002, ...
+    marker = f"{prefix}_"
+    max_num = 0
+    for item in items:
+        item_id = str(item.get("id", ""))
+        if not item_id.startswith(marker):
+            continue
+        try:
+            max_num = max(max_num, int(item_id.removeprefix(marker)))
+        except ValueError:
+            continue
+    return f"{prefix}_{max_num + 1:03d}"
+```
+
+```python
+data = self.store.load_store()
+doc_id = next_prefixed_id(data["documents"], "doc")
+now = datetime.now().isoformat(timespec="seconds")
+
+document = {
+    "id": doc_id,
+    "project_id": "default",
+    "title": content.replace("\n", " ")[:40] or doc_id,
+    "source_type": "text",
+    "source_uri": "",
+    "tags": [],
+    "created_at": now,
+    "updated_at": now,
+}
+
+chunk_texts = split_text_into_chunks(
+    content,
+    chunk_size=int(self.config.get("chunk_size", 800)),
+    chunk_overlap=int(self.config.get("chunk_overlap", 120)),
+)
+
+embedding_provider = self._get_embedding_provider()
+new_chunks = []
+for index, chunk_text in enumerate(chunk_texts):
+    # Generate IDs against existing chunks plus chunks made in this loop.
+    chunk_id = next_prefixed_id(data["chunks"] + new_chunks, "chunk")
+    embedding = None
+    if embedding_provider:
+        embedding = await embedding_provider.get_embedding(chunk_text)
+    new_chunks.append(
+        {
+            "id": chunk_id,
+            "doc_id": doc_id,
+            "index": index,
+            "content": chunk_text,
+            "embedding": embedding,
+            "metadata": {},
+        }
+    )
+
+data["documents"].append(document)
+data["chunks"].extend(new_chunks)
+self.store.save_store(data)
+yield event.plain_result(f"資料を保存しました: {doc_id}\nchunks: {len(new_chunks)}")
+```
