@@ -1,9 +1,6 @@
-from click import prompt
-
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import AstrBotConfig, logger
-import json
 from datetime import datetime
 from pathlib import Path
 from .store import NoteStore
@@ -19,18 +16,33 @@ class ResearchNotePlugin(Star):
         self.notes_file = self.data_dir / "research_notes.json"
         self.store = NoteStore(self.notes_file)
 
-    # 生成下一个 note 的 ID，格式为 note_001, note_002, ...        
+    # 生成新的 note id，格式为 note_001, note_002 等        
     def _next_note_id(self, notes: list[dict]) -> str:
-        return f"note_{len(notes) + 1:03d}"
+        max_num = 0
+        for note in notes:
+            note_id = str(note.get("id", ""))
+            if note_id.startswith("note_"):
+                try:
+                    max_num = max(max_num, int(note_id.removeprefix("note_")))
+                except ValueError:
+                    continue
+        return f"note_{max_num + 1:03d}"
+    
     # 从消息中提取 research add 或 research ask 指令的内容
     def _extract_research_tail(self, event: AstrMessageEvent) -> str:
         raw_text = event.message_str.strip()
         prefix1 = "research add"
         prefix2 = "research ask"
+        prefix3 = "research show"
+        prefix4 = "research delete --confirm"
         if raw_text.startswith(prefix1):
             return raw_text[len(prefix1):].strip()
         if raw_text.startswith(prefix2):
             return raw_text[len(prefix2):].strip()
+        if raw_text.startswith(prefix3):
+            return raw_text[len(prefix3):].strip()
+        if raw_text.startswith(prefix4):
+            return raw_text[len(prefix4):].strip()
         return ""
     def _get_embedding_provider(self):
         providers = self.context.get_all_embedding_providers()
@@ -53,13 +65,6 @@ class ResearchNotePlugin(Star):
         logger.info(message_chain)
         yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
 
-    # 注册指令的装饰器。指令名为 research_hellow。注册成功后，发送 `/research_hellow` 就会触发这个指令，并回复 `Research Note is ready, {user_name}!`
-    @filter.command("research_hellow")
-    async def research_hellow(self, event: AstrMessageEvent):
-        """Research Note の動作確認コマンド。""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-        user_name = event.get_sender_name()
-        yield event.plain_result(f"Research Note is ready, {user_name}!") # 发送一条纯文本消息
-
     @filter.command_group("research")
     def research_group(self):
         """Research Note commands."""
@@ -73,25 +78,28 @@ class ResearchNotePlugin(Star):
     /research list - 資料一覧
     /research ask <question> - 資料に基づいて質問
     /research clear --confirm - 全資料を削除
+    /research delete --confirm <id> - 指定した資料を削除
+    /research show <id> - 指定した資料を表示
+    /research help - このヘルプを表示
     """
         yield event.plain_result(text)
 
     @research_group.command("add")
     async def research_add(self, event: AstrMessageEvent, content: str=""):
         """資料を追加します。"""
-        embedding = None
-        embedding_provider = self._get_embedding_provider()
-        if embedding_provider:
-            embedding = await embedding_provider.get_embedding(content)
         content = self._extract_research_tail(event)
         if not content:
             yield event.plain_result("追加する資料テキストを入力してください。")
             return
+        embedding = None
+        embedding_provider = self._get_embedding_provider()
+        if embedding_provider:
+            embedding = await embedding_provider.get_embedding(content)
         max_add_chars = int(self.config.get("max_add_chars", 8000))
         if len(content) > max_add_chars:
             yield event.plain_result(f"資料が長すぎます。最大 {max_add_chars} 文字までです。")
             return
-        notes = self.store.load_notes(logger)
+        notes = self.store.load_notes()
         note = {
             "id": self._next_note_id(notes),
             "content": content,
@@ -106,7 +114,7 @@ class ResearchNotePlugin(Star):
     @research_group.command("list")
     async def research_list(self, event: AstrMessageEvent):
         """保存済み資料を表示します。"""
-        notes = self.store.load_notes(logger)
+        notes = self.store.load_notes()
         if not notes:
             yield event.plain_result("保存済み資料はありません。")
             return
@@ -115,9 +123,27 @@ class ResearchNotePlugin(Star):
         for note in notes[:10]:
             preview = note["content"].replace("\n", " ")[:60]
             lines.append(f"- {note['id']}: {preview}")
-
         yield event.plain_result("\n".join(lines))
 
+    @research_group.command("show")
+    async def research_show(self, event: AstrMessageEvent, note_id: str=""):
+        """保存済み資料を表示します。"""
+        note_id = self._extract_research_tail(event)
+        note_id = f"note_{note_id}"
+        notes = self.store.load_notes()
+        if not notes:
+            yield event.plain_result("保存済み資料はありません。")
+            return
+        if note_id:
+            note = next((n for n in notes if n["id"] == note_id), None)
+            if not note:
+                yield event.plain_result("指定された資料が見つかりません。")
+                return
+            yield event.plain_result(f"資料: {note['id']}\n内容: {note['content']}")
+        else:
+            yield event.plain_result("資料IDを指定してください。")
+            return
+        
     @research_group.command("ask")
     async def research_ask(self, event: AstrMessageEvent, question: str=""):
         """資料に基づいて質問します。"""
@@ -127,7 +153,7 @@ class ResearchNotePlugin(Star):
             yield event.plain_result("質問を入力してください。")
             return
 
-        notes = self.store.load_notes(logger)
+        notes = self.store.load_notes()
         if not notes:
             yield event.plain_result("保存済み資料がありません。先に /research add で資料を追加してください。")
             return
@@ -144,10 +170,12 @@ class ResearchNotePlugin(Star):
             return
         
         prompt = build_answer_prompt(question, matched_notes, max_note_chars=int(self.config.get("max_note_chars", 1200)), strict_grounding=self.config.get("strict_grounding", True))
-        provider_id = await self.context.get_current_chat_provider_id(
-            umo=event.unified_msg_origin
-        )
-        if not provider_id:
+        try:
+            provider_id = await self.context.get_current_chat_provider_id(
+                umo=event.unified_msg_origin
+            )
+        except Exception:
+            logger.error("Failed to get current chat provider.", exc_info=True)
             yield event.plain_result("利用可能な LLM provider が見つかりません。")
             return
         llm_resp = await self.context.llm_generate(
@@ -166,6 +194,25 @@ class ResearchNotePlugin(Star):
             return
         self.store.save_notes([])
         yield event.plain_result("保存済み資料をすべて削除しました。")
+
+    @research_group.command("delete")
+    async def research_delete(self, event: AstrMessageEvent, confirm: str | None = None):
+        """保存済み資料を削除します。"""
+        if confirm != "--confirm":
+            yield event.plain_result("削除するには /research delete --confirm を実行してください。")
+            return
+        note_id = self._extract_research_tail(event)
+        note_id = f"note_{note_id}"
+        notes = self.store.load_notes()
+        if not notes:
+            yield event.plain_result("保存済み資料はありません。")
+            return
+        new_notes = [note for note in notes if note["id"] != note_id]
+        if len(new_notes) == len(notes):
+            yield event.plain_result("指定された資料が見つかりません。")
+            return
+        self.store.save_notes(new_notes)
+        yield event.plain_result("保存済み資料を削除しました。")
 
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
