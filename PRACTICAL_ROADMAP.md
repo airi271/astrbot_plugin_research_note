@@ -279,12 +279,14 @@ AstrBot の SubAgent Orchestrator を使う場合は、設定で `transfer_to_*`
 
 作業です。
 
-- `tools/research_search.py` などを作り、`FunctionTool` を定義する。
+- `FunctionTool` を定義する。
 - `research_search` tool を `context.add_llm_tools()` で登録する。
 - `research_get_document` tool を作る。
-- `research_add_text` tool を作る。
+- `research_list_documents` tool を作る。
+- `research_add_text` tool を作り、明示的な保存依頼のときだけ使う説明にする。
+- `research_delete_document` tool を作り、`doc_id` と `confirm_doc_id` が一致する時だけ削除する。
 - tool の返却は長すぎない JSON 文字列にする。
-- tool 用の unit test を追加する。
+- `/research search` と tool で同じ検索 helper を使う。
 
 完了条件です。
 

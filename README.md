@@ -18,6 +18,7 @@ See `docs/practical_steps/architecture_overview.md` for a short explanation of t
 - Inspect a stored document with `/research show <doc_id>`.
 - Ask source-grounded questions with `/research ask <question>`.
 - Use embedding search through an AstrBot embedding provider.
+- Register LLM tools: `research_search`, `research_get_document`, `research_list_documents`, `research_add_text`, and `research_delete_document`.
 - Configure search and safety options through `_conf_schema.json`.
 - Follow the practical roadmap toward citation quality, tool use, MCP, and multi-agent research workflows.
 
@@ -76,8 +77,6 @@ The plugin currently supports these configuration items:
 
 The next practical milestones are:
 
-- Improve embedding search and citation quality.
-- Expose Research Note as AstrBot `FunctionTool`s.
 - Add `/research agent` with `tool_loop_agent()`.
 - Add import, web research, MCP, and multi-agent workflows after the core source-grounded flow is stable.
 
