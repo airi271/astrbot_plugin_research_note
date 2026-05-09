@@ -7,7 +7,7 @@ from astrbot.api.star import Context, Star, register
 
 from .chunking import split_text_into_chunks
 from .prompts import build_answer_prompt
-from .search import search_chunks_by_embedding
+from .search import search_chunk_results_by_embedding
 from .store import NoteStore
 
 
@@ -61,6 +61,7 @@ class ResearchNotePlugin(Star):
             "research ask",
             "research show",
             "research delete",
+            "research search",
         ):
             if raw_text.startswith(prefix):
                 return raw_text[len(prefix) :].strip()
@@ -116,6 +117,17 @@ class ResearchNotePlugin(Star):
             chunks.append(enriched)
         return chunks
 
+    def _chunks_from_search_results(self, results: list[dict]) -> list[dict]:
+        chunks = []
+        for result in results:
+            chunk = dict(result["chunk"])
+            document = result.get("document", {})
+            chunk["title"] = document.get("title", "")
+            chunk["source_uri"] = document.get("source_uri", "")
+            chunk["embedding_score"] = result.get("embedding_score", 0.0)
+            chunks.append(chunk)
+        return chunks
+
     async def initialize(self):
         """Optional async initialization hook."""
 
@@ -131,6 +143,7 @@ class ResearchNotePlugin(Star):
     /research add <text> - 資料を追加
     /research list - 資料一覧
     /research show <doc_id> - 指定した資料を表示
+    /research search <query> - embedding 検索結果を表示
     /research ask <question> - 資料に基づいて質問
     /research delete <doc_id> --confirm - 指定した資料を削除
     /research reindex - 既存資料の embedding を再作成
@@ -316,22 +329,29 @@ class ResearchNotePlugin(Star):
             yield event.plain_result("質問の embedding 作成に失敗しました。")
             return
 
-        matched_chunks = search_chunks_by_embedding(
-            query_embedding, chunks, top_k=top_k
+        results = search_chunk_results_by_embedding(
+            query_embedding,
+            store["documents"],
+            store["chunks"],
+            top_k=top_k,
+            min_embedding_score=float(self.config.get("min_embedding_score", 0.0)),
         )
         logger.info(
-            f"Found {len(matched_chunks)} matched chunks using embedding search."
+            f"Found {len(results)} matched chunks using embedding search."
         )
 
-        if not matched_chunks:
+        if not results:
             yield event.plain_result("関連する資料が見つかりませんでした。")
             return
+
+        matched_chunks = self._chunks_from_search_results(results)
 
         # prompt 构造放在 prompts.py 中，保持命令逻辑简洁。
         prompt = build_answer_prompt(
             question,
             matched_chunks,
             max_note_chars=int(self.config.get("max_note_chars", 1200)),
+            max_context_chars=int(self.config.get("max_context_chars", 6000)),
             strict_grounding=self.config.get("strict_grounding", True),
         )
         try:
@@ -358,6 +378,64 @@ class ResearchNotePlugin(Star):
         if self.config.get("show_debug_prompt", False):
             result += f"\n\nprompt:\n{prompt}"
         yield event.plain_result(result)
+
+    @research_group.command("search")
+    async def research_search(self, event: AstrMessageEvent, query: str = ""):
+        """embedding 検索結果を表示します。"""
+        query = self._extract_research_tail(event)
+        if not query:
+            yield event.plain_result("検索 query を入力してください。")
+            return
+
+        embedding_provider = self._get_embedding_provider()
+        if not embedding_provider:
+            yield event.plain_result("embedding provider が設定されていません。")
+            return
+
+        store = self.store.load_store()
+        if not store["chunks"]:
+            yield event.plain_result(
+                "保存済み資料がありません。先に /research add で資料を追加してください。"
+            )
+            return
+        if any(
+            not isinstance(chunk.get("embedding"), list) for chunk in store["chunks"]
+        ):
+            yield event.plain_result(
+                "embedding がない chunk があります。/research reindex を実行してください。"
+            )
+            return
+
+        try:
+            query_embedding = await embedding_provider.get_embedding(query)
+        except Exception:
+            logger.error("Failed to generate embedding for search query.", exc_info=True)
+            yield event.plain_result("検索 query の embedding 作成に失敗しました。")
+            return
+
+        results = search_chunk_results_by_embedding(
+            query_embedding,
+            store["documents"],
+            store["chunks"],
+            top_k=int(self.config.get("top_k", 3)),
+            min_embedding_score=float(self.config.get("min_embedding_score", 0.0)),
+        )
+        if not results:
+            yield event.plain_result("関連する資料が見つかりませんでした。")
+            return
+
+        lines = ["検索結果:"]
+        for index, result in enumerate(results, start=1):
+            chunk = result["chunk"]
+            document = result.get("document", {})
+            preview = str(chunk.get("content", "")).replace("\n", " ")[:100]
+            lines.append(
+                f"{index}. {chunk.get('doc_id')}/{chunk.get('id')} "
+                f"score={result.get('embedding_score', 0.0):.3f}\n"
+                f"   title: {document.get('title', '')}\n"
+                f"   preview: {preview}"
+            )
+        yield event.plain_result("\n".join(lines))
 
     @research_group.command("delete")
     async def research_delete(

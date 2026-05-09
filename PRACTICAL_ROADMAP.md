@@ -100,13 +100,13 @@ Chunk
 
 ### 2. 検索層
 
-検索は3段階にします。
+検索は embedding-only にします。
 
-- `keyword`: provider なしでも動く最低限の検索。
-- `embedding`: AstrBot embedding provider がある場合の意味検索。
-- `hybrid`: keyword と embedding のスコアを混ぜる検索。
+- `embedding`: AstrBot embedding provider を使う意味検索。
+- すべての chunk に embedding を保存する。
+- provider なしの keyword fallback は作らない。
 
-実用上は hybrid が最も安定します。固有名詞、式、論文名は keyword が強く、言い換え質問は embedding が強いためです。
+検索方式を1つに絞ることで、保存時の embedding 作成失敗にすぐ気づけるようにします。
 
 ### 3. 回答層
 
@@ -256,23 +256,21 @@ AstrBot の SubAgent Orchestrator を使う場合は、設定で `transfer_to_*`
 - 引用が note 単位ではなく chunk 単位になる。
 - 古い JSON から移行できる。
 
-## Phase 3: Hybrid Search と Citation
+## Phase 3: Embedding Search と Citation
 
 目的は、検索品質と根拠表示を改善することです。
 
 作業です。
 
-- keyword score と embedding score を別々に計算する。
-- hybrid score を実装する。
-- 検索結果に score と match reason を付ける。
-- `min_score`、`top_k`、`max_context_chars` を設定化する。
+- embedding score を検索結果に付ける。
+- `/research search <query>` を embedding 検索だけで実装する。
+- `min_embedding_score`、`top_k`、`max_context_chars` を設定化する。
 - 回答 prompt に citation rule を明記する。
 - `/research search <query>` で LLM を呼ばず検索結果だけ確認できるようにする。
 
 完了条件です。
 
-- 固有名詞、短いキーワード、言い換え質問のすべてで検索できる。
-- `/research search` でなぜその資料が選ばれたか確認できる。
+- `/research search` で embedding score、title、preview を確認できる。
 - 回答に使った chunk が明示される。
 
 ## Phase 4: Research Tools 化
@@ -433,7 +431,7 @@ AstrBot の SubAgent Orchestrator を使う場合は、設定で `transfer_to_*`
 
 - 小さな評価データセットを作る。
 - 質問、期待される source、期待回答の要点を保存する。
-- keyword、embedding、hybrid の検索結果を比較する。
+- embedding 検索結果と期待 source を比較する。
 - citation が正しいかを手動確認しやすくする。
 - hallucination しやすい質問をテストに入れる。
 

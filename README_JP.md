@@ -47,6 +47,7 @@ docs/practical_steps/architecture_overview.md
 /research add <text>
 /research list
 /research show <doc_id>
+/research search <query>
 /research ask <question>
 /research delete <doc_id> --confirm
 /research reindex
@@ -71,6 +72,12 @@ docs/practical_steps/architecture_overview.md
 
 ```text
 /research show doc_001
+```
+
+embedding 検索結果を確認します。
+
+```text
+/research search RAG とは何ですか？
 ```
 
 資料に基づいて質問します。
@@ -118,6 +125,8 @@ docs/practical_steps/architecture_overview.md
 - `max_add_chars`: 1回で追加できる資料の最大文字数。
 - `chunk_size`: 資料を分割する chunk の文字数。
 - `chunk_overlap`: 隣り合う chunk で重ねる文字数。
+- `min_embedding_score`: 検索結果として採用する最小 embedding score。
+- `max_context_chars`: LLM に渡す検索結果全体の最大文字数。
 - `strict_grounding`: 資料にないことを推測しないよう強く指示するかどうか。
 - `show_debug_prompt`: `/research ask` の出力に実際の prompt を表示するかどうか。
 

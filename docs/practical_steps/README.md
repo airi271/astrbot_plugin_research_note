@@ -9,7 +9,7 @@
 0. `architecture_overview.md`: Research Note を中心にしたアプリ全体の構造図。
 1. `01_foundation_quality.md`: 実用品質の土台作り。
 2. `02_documents_and_chunks.md`: Document と Chunk への移行。
-3. `03_hybrid_search_and_citation.md`: Hybrid Search と Citation。
+3. `03_hybrid_search_and_citation.md`: Embedding Search と Citation。
 4. `04_research_tools.md`: Research Note を LLM tool 化する。
 5. `05_agent_mode.md`: `/research agent` を作る。
 6. `06_import.md`: URL や text import を作る。

@@ -3,9 +3,11 @@ def build_answer_prompt(
     question: str,
     notes: list[dict],
     max_note_chars: int = 1200,
+    max_context_chars: int = 6000,
     strict_grounding: bool = True,
 ) -> str:
     note_blocks = []
+    total_chars = 0
     for note in notes:
         content = str(note.get("content", ""))[:max_note_chars]
         source_id = note.get("id", "unknown")
@@ -17,7 +19,14 @@ def build_answer_prompt(
         source_meta = ""
         if title or source_uri:
             source_meta = f"\ntitle: {title or ''}\nsource_uri: {source_uri or ''}"
-        note_blocks.append(f"[{source_id}]{source_meta}\n{content}")
+        score = note.get("embedding_score")
+        if isinstance(score, float):
+            source_meta += f"\nembedding_score: {score:.3f}"
+        block = f"[{source_id}]{source_meta}\n{content}"
+        if note_blocks and total_chars + len(block) > max_context_chars:
+            break
+        note_blocks.append(block)
+        total_chars += len(block)
 
     sources = "\n\n".join(note_blocks)
     if strict_grounding:
@@ -27,7 +36,18 @@ def build_answer_prompt(
     return f"""あなたは研究補助AIです。
 以下の資料だけを根拠にして、ユーザーの質問に日本語で答えてください。
 {grounding_rule}
-回答の最後に、使用した資料IDを短く示してください。
+根拠にした文の近くに [doc_id/chunk_id] の形式で citation を付けてください。
+回答の最後に Sources と Unknowns を付けてください。
+
+出力形式:
+Answer:
+...
+
+Sources:
+- doc_id/chunk_id: title
+
+Unknowns:
+- 資料からは分からない点
 
 資料:
 {sources}

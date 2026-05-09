@@ -34,6 +34,20 @@
     "minimum": 0,
     "maximum": 1000
   },
+  "min_embedding_score": {
+    "description": "検索結果として採用する最小 embedding score",
+    "type": "float",
+    "default": 0.0,
+    "minimum": -1,
+    "maximum": 1
+  },
+  "max_context_chars": {
+    "description": "LLM に渡す検索結果全体の最大文字数",
+    "type": "int",
+    "default": 6000,
+    "minimum": 1000,
+    "maximum": 30000
+  },
   "strict_grounding": {
     "description": "資料にないことを推測しないよう強く指示する",
     "type": "bool",

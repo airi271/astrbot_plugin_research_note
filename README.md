@@ -51,6 +51,7 @@ docs/practical_steps/architecture_overview.md
 /research add <text>
 /research list
 /research show <doc_id>
+/research search <query>
 /research ask <question>
 /research delete <doc_id> --confirm
 /research reindex
@@ -66,6 +67,8 @@ The plugin currently supports these configuration items:
 - `max_add_chars`: Maximum characters allowed in one `/research add` call.
 - `chunk_size`: Approximate character length of each stored chunk.
 - `chunk_overlap`: Character overlap between neighboring chunks.
+- `min_embedding_score`: Minimum embedding similarity score required for retrieval.
+- `max_context_chars`: Maximum total context characters passed to the LLM.
 - `strict_grounding`: Whether to strongly restrict answers to stored sources.
 - `show_debug_prompt`: Whether to include the generated LLM prompt in `/research ask` output.
 
@@ -73,7 +76,7 @@ The plugin currently supports these configuration items:
 
 The next practical milestones are:
 
-- Improve hybrid search and citation quality.
+- Improve embedding search and citation quality.
 - Expose Research Note as AstrBot `FunctionTool`s.
 - Add `/research agent` with `tool_loop_agent()`.
 - Add import, web research, MCP, and multi-agent workflows after the core source-grounded flow is stable.
