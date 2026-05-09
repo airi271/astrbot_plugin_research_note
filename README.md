@@ -13,6 +13,7 @@ See `docs/practical_steps/architecture_overview.md` for a short explanation of t
 ## Features
 
 - Save research materials with `/research add <text>`.
+- Import text or HTML pages with preview and confirmation.
 - Store materials as documents and searchable chunks.
 - List stored materials with `/research list`.
 - Inspect a stored document with `/research show <doc_id>`.
@@ -55,10 +56,15 @@ docs/practical_steps/architecture_overview.md
 /research search <query>
 /research ask <question>
 /research agent <task>
+/research import text <text>
+/research import url <url>
+/research import confirm <pending_id>
 /research delete <doc_id> --confirm
 /research reindex
 /research clear --confirm
 ```
+
+Short aliases are also available: `/research import_text <text>`, `/research import_url <url>`, and `/research import_confirm <pending_id>`.
 
 ## Configuration
 
@@ -73,6 +79,9 @@ The plugin currently supports these configuration items:
 - `max_context_chars`: Maximum total context characters passed to the LLM.
 - `agent_max_steps`: Maximum number of agent tool-calling steps.
 - `agent_tool_call_timeout`: Timeout seconds for each agent tool call.
+- `max_import_chars`: Maximum text characters kept from an import preview.
+- `import_preview_chars`: Maximum characters shown in an import preview.
+- `import_url_timeout`: Timeout seconds for URL import fetching.
 - `strict_grounding`: Whether to strongly restrict answers to stored sources.
 - `show_debug_prompt`: Whether to include the generated LLM prompt in `/research ask` output.
 

@@ -8,6 +8,8 @@ from astrbot.api.star import Context, Star, register
 
 from .agent_prompts import build_research_agent_system_prompt
 from .chunking import split_text_into_chunks
+from .importers.url_importer import fetch_url_text
+from .pending_imports import PendingImportStore
 from .prompts import build_answer_prompt
 from .store import NoteStore
 from .tool_utils import (
@@ -30,6 +32,7 @@ class ResearchNotePlugin(Star):
         self.config = config
         self.data_dir = Path(__file__).parent / "data"
         self.notes_file = self.data_dir / "research_notes.json"
+        self.pending_imports = PendingImportStore(self.data_dir / "pending_imports.json")
         self.store = NoteStore(self.notes_file)
         self._register_research_tools()
 
@@ -71,6 +74,10 @@ class ResearchNotePlugin(Star):
             "research delete",
             "research search",
             "research agent",
+            "research import_text",
+            "research import_url",
+            "research import_confirm",
+            "research import",
         ):
             if raw_text.startswith(prefix):
                 return raw_text[len(prefix) :].strip()
@@ -144,12 +151,13 @@ class ResearchNotePlugin(Star):
         source_type: str = "text",
         source_uri: str = "",
         tags: list[str] | None = None,
+        max_chars: int | None = None,
     ) -> dict:
         content = content.strip()
         if not content:
             raise ResearchToolError("content_required")
 
-        max_add_chars = int(self.config.get("max_add_chars", 8000))
+        max_add_chars = max_chars or int(self.config.get("max_add_chars", 8000))
         if len(content) > max_add_chars:
             raise ResearchToolError("content_too_long")
 
@@ -212,8 +220,45 @@ class ResearchNotePlugin(Star):
             "content_required": "保存する本文を入力してください。",
             "content_too_long": "資料が長すぎます。",
             "embedding_failed": "embedding の作成に失敗したため、資料は保存しませんでした。",
+            "import_not_found": "指定された pending import が見つかりません。",
         }
         return messages.get(error.code, "Research Note tool の実行に失敗しました。")
+
+    def _build_import_preview(self, payload: dict, pending_id: str) -> str:
+        content = str(payload.get("content", ""))
+        preview_chars = int(self.config.get("import_preview_chars", 800))
+        chunk_count = len(
+            split_text_into_chunks(
+                content,
+                chunk_size=int(self.config.get("chunk_size", 800)),
+                chunk_overlap=int(self.config.get("chunk_overlap", 120)),
+            )
+        )
+        source_uri = payload.get("source_uri") or ""
+        source_line = f"source: {source_uri}\n" if source_uri else ""
+        return (
+            "Import preview\n"
+            f"id: {pending_id}\n"
+            f"title: {payload.get('title', '')}\n"
+            f"source_type: {payload.get('source_type', 'text')}\n"
+            f"{source_line}"
+            f"chars: {len(content)}\n"
+            f"chunks: {chunk_count}\n\n"
+            f"preview:\n{content[:preview_chars]}\n\n"
+            f"保存するには: /research import confirm {pending_id}"
+        )
+
+    def _add_pending_import(self, payload: dict) -> tuple[str, dict]:
+        max_import_chars = int(self.config.get("max_import_chars", 50000))
+        content = str(payload.get("content", "")).strip()
+        if not content:
+            raise ResearchToolError("content_required")
+        payload = dict(payload)
+        payload["content"] = content[:max_import_chars]
+        payload["title"] = str(payload.get("title") or content.replace("\n", " ")[:60])
+        payload["source_type"] = str(payload.get("source_type") or "text")
+        payload["source_uri"] = str(payload.get("source_uri") or "")
+        return self.pending_imports.add(payload), payload
 
     def _register_research_tools(self) -> None:
         # 先に読み取り専用 tool だけを登録する。書き込み tool は確認フローを作ってから追加する。
@@ -502,6 +547,9 @@ class ResearchNotePlugin(Star):
     /research search <query> - embedding 検索結果を表示
     /research ask <question> - 資料に基づいて質問
     /research agent <task> - Research Note tools を使って調査
+    /research import text <text> - preview 後に資料として取り込み
+    /research import url <url> - URL を preview 後に資料として取り込み
+    /research import confirm <id> - preview 済み import を保存
     /research delete <doc_id> --confirm - 指定した資料を削除
     /research reindex - 既存資料の embedding を再作成
     /research clear --confirm - 全資料を削除
@@ -748,6 +796,140 @@ class ResearchNotePlugin(Star):
             else "Research agent は回答を生成できませんでした。"
         )
         yield event.plain_result(answer)
+
+    @research_group.command("import")
+    async def research_import_command(self, event: AstrMessageEvent, args: str = ""):
+        """text または URL を preview 付きで取り込みます。"""
+        # import は preview を作るだけで、confirm まで保存しない。
+        tail = self._extract_research_tail(event)
+        command, _, value = tail.partition(" ")
+        command = command.strip().lower()
+        value = value.strip()
+
+        if command == "text":
+            yield event.plain_result(await self._build_import_text_preview(value))
+            return
+        if command == "url":
+            yield event.plain_result(await self._build_import_url_preview(value))
+            return
+        if command == "confirm":
+            yield event.plain_result(await self._confirm_import(value))
+            return
+
+        yield event.plain_result(
+            "使い方: /research import text <text>\n"
+            "       /research import url <url>\n"
+            "       /research import confirm <id>"
+        )
+
+    @research_group.command("import_text")
+    async def research_import_text(self, event: AstrMessageEvent, content: str = ""):
+        """text import の短縮コマンドです。"""
+        yield event.plain_result(
+            await self._build_import_text_preview(self._extract_research_tail(event))
+        )
+
+    @research_group.command("import_url")
+    async def research_import_url(self, event: AstrMessageEvent, url: str = ""):
+        """URL import の短縮コマンドです。"""
+        yield event.plain_result(
+            await self._build_import_url_preview(self._extract_research_tail(event))
+        )
+
+    @research_group.command("import_confirm")
+    async def research_import_confirm(
+        self,
+        event: AstrMessageEvent,
+        pending_id: str = "",
+    ):
+        """import preview を保存する短縮コマンドです。"""
+        yield event.plain_result(
+            await self._confirm_import(self._extract_research_tail(event))
+        )
+
+    async def _build_import_text_preview(
+        self,
+        content: str,
+    ) -> str:
+        content = content.strip()
+        if not content:
+            return "import する text を入力してください。"
+
+        try:
+            payload = {
+                "title": content.replace("\n", " ")[:60],
+                "content": content,
+                "source_type": "text_import",
+                "source_uri": "",
+            }
+            pending_id, payload = self._add_pending_import(payload)
+        except ResearchToolError as exc:
+            return self._tool_error_message(exc)
+
+        return self._build_import_preview(payload, pending_id)
+
+    async def _build_import_url_preview(
+        self,
+        url: str,
+    ) -> str:
+        url = url.strip()
+        if not url:
+            return "URL を入力してください。"
+
+        try:
+            payload = await fetch_url_text(
+                url,
+                timeout=int(self.config.get("import_url_timeout", 20)),
+            )
+            pending_id, payload = self._add_pending_import(payload)
+        except ResearchToolError as exc:
+            return self._tool_error_message(exc)
+        except Exception:
+            logger.error("URL import failed.", exc_info=True)
+            return "URL の取得に失敗しました。http/https の HTML URL を指定してください。"
+
+        return self._build_import_preview(payload, pending_id)
+
+    async def _confirm_import(
+        self,
+        pending_id: str,
+    ) -> str:
+        pending_id = (
+            pending_id.strip().split(maxsplit=1)[0] if pending_id.strip() else ""
+        )
+        if not pending_id:
+            return "pending import id を入力してください。"
+
+        pending = self.pending_imports.load_all()
+        payload = pending.get(pending_id)
+        if not payload:
+            return self._tool_error_message(ResearchToolError("import_not_found"))
+
+        try:
+            saved = await self._add_document_from_text(
+                str(payload.get("content", "")),
+                title=str(payload.get("title", "")),
+                source_type=str(payload.get("source_type", "text_import")),
+                source_uri=str(payload.get("source_uri", "")),
+                max_chars=int(self.config.get("max_import_chars", 50000)),
+            )
+        except ResearchToolError as exc:
+            if exc.code == "embedding_failed":
+                logger.error("Failed to generate embeddings for import.", exc_info=True)
+            return self._tool_error_message(exc)
+
+        pending.pop(pending_id, None)
+        self.pending_imports.save_all(pending)
+
+        document = saved["document"]
+        return (
+            f"import を保存しました: {document['id']}\n"
+            f"title: {document.get('title', '')}\n"
+            f"source_type: {document.get('source_type', '')}\n"
+            f"source_uri: {document.get('source_uri', '')}\n"
+            f"chunks: {len(saved['chunks'])}\n"
+            "embedding: 全 chunk 作成済み"
+        )
 
     @research_group.command("search")
     async def research_search(self, event: AstrMessageEvent, query: str = ""):

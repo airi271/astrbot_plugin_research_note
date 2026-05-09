@@ -13,17 +13,18 @@
 - `/research add` で資料テキストを保存できる。
 - `/research list` で保存済み資料を確認できる。
 - `/research ask` で関連資料を検索し、LLM に渡して回答できる。
+- `/research import text/url/confirm` で preview 後に資料を取り込める。
 - JSON 保存ができる。
 - embedding provider を使って embedding 検索できる。
 - 全 chunk に embedding を付ける方針で、キーワード検索 fallback は使わない。
-- `top_k`、`max_note_chars`、`max_add_chars`、`strict_grounding` を設定化できている。
+- `top_k`、`max_note_chars`、`max_add_chars`、`max_import_chars`、`strict_grounding` を設定化できている。
 
 現在の実装は「学習用の最小 RAG」としては十分です。実用化では、次の問題を順番に解決します。
 
 - 長い資料をそのまま1件の note として扱っている。
 - 資料のタイトル、出典 URL、著者、タグ、プロジェクト名などの metadata がない。
 - 引用が note ID 単位で、本文のどこに基づくかが弱い。
-- URL、PDF、Markdown、Web検索結果などを資料化する入口がない。
+- PDF、Markdown、Web検索結果などを資料化する入口がまだ弱い。
 - LLM が資料検索を自律的に使う tool になっていない。
 - MCP や AstrBot 組み込み Web Search とまだ連携していない。
 - 複数の専門 agent に仕事を分ける構造がまだない。

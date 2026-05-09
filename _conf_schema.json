@@ -62,6 +62,27 @@
     "minimum": 5,
     "maximum": 300
   },
+  "max_import_chars": {
+    "description": "import で取り込む本文の最大文字数",
+    "type": "int",
+    "default": 50000,
+    "minimum": 1000,
+    "maximum": 500000
+  },
+  "import_preview_chars": {
+    "description": "import preview に表示する文字数",
+    "type": "int",
+    "default": 800,
+    "minimum": 100,
+    "maximum": 3000
+  },
+  "import_url_timeout": {
+    "description": "URL import の取得 timeout 秒",
+    "type": "int",
+    "default": 20,
+    "minimum": 5,
+    "maximum": 120
+  },
   "strict_grounding": {
     "description": "資料にないことを推測しないよう強く指示する",
     "type": "bool",
