@@ -67,6 +67,19 @@ class ResearchNotePlugin(Star):
             return f"doc_{doc_id.removeprefix('note_')}"
         return f"doc_{doc_id}"
 
+    def _format_chunk_detail(self, document: dict, chunk: dict) -> str:
+        has_embedding = isinstance(chunk.get("embedding"), list)
+        return (
+            f"資料: {document.get('id', '')}\n"
+            f"title: {document.get('title', '')}\n"
+            f"source: {document.get('source_type', 'text')}\n"
+            f"source_uri: {document.get('source_uri', '')}\n"
+            f"chunk: {chunk.get('id', 'unknown')}\n"
+            f"index: {chunk.get('index', 'unknown')}\n"
+            f"embedding: {'あり' if has_embedding else 'なし'}\n\n"
+            f"content:\n{chunk.get('content', '')}"
+        )
+
     # 从 /research 子命令后面提取用户输入的自由文本。
     def _extract_research_tail(self, event: AstrMessageEvent) -> str:
         raw_text = event.message_str.strip().removeprefix("/").strip()
@@ -585,7 +598,9 @@ class ResearchNotePlugin(Star):
         text = """Research Note commands:
     /research add <text> - 資料を追加
     /research list - 資料一覧
-    /research show <doc_id> - 指定した資料を表示
+    /research show <doc_id> - 指定した資料と chunk preview を表示
+    /research show <doc_id> <chunk_index|chunk_id> - 指定した chunk 本文を表示
+    /research show <chunk_id> - 指定した chunk 本文を表示
     /research search <query> - embedding 検索結果を表示
     /research ask <question> - 資料に基づいて質問
     /research agent <task> - Research Note tools を使って調査
@@ -664,16 +679,34 @@ class ResearchNotePlugin(Star):
     @research_group.command("show")
     async def research_show(self, event: AstrMessageEvent, doc_id: str = ""):
         """保存済み資料を表示します。"""
-        # 显示单条资料及其 chunk preview，方便检查资料和引用。
-        doc_id = self._normalize_doc_id(self._extract_research_tail(event))
-        if not doc_id:
-            yield event.plain_result("資料IDを指定してください。")
+        # 显示单条资料及其 chunk preview，也支持查看具体 chunk 本文。
+        raw_tail = self._extract_research_tail(event)
+        if not raw_tail:
+            yield event.plain_result("資料IDまたは chunk ID を指定してください。")
             return
 
         store = self.store.load_store()
         if not store["documents"]:
             yield event.plain_result("保存済み資料はありません。")
             return
+
+        documents_by_id = {doc.get("id"): doc for doc in store["documents"]}
+        args = raw_tail.replace("/", " ").split()
+
+        if args and args[0].startswith("chunk_"):
+            chunk_id = args[0]
+            chunk = next(
+                (chunk for chunk in store["chunks"] if chunk.get("id") == chunk_id),
+                None,
+            )
+            if not chunk:
+                yield event.plain_result("指定された chunk が見つかりません。")
+                return
+            document = documents_by_id.get(chunk.get("doc_id"), {})
+            yield event.plain_result(self._format_chunk_detail(document, chunk))
+            return
+
+        doc_id = self._normalize_doc_id(args[0])
 
         document = next(
             (doc for doc in store["documents"] if doc.get("id") == doc_id), None
@@ -683,14 +716,43 @@ class ResearchNotePlugin(Star):
             return
 
         chunks = [chunk for chunk in store["chunks"] if chunk.get("doc_id") == doc_id]
+        if len(args) >= 2:
+            chunk_ref = args[1]
+            chunk = None
+            if chunk_ref.startswith("chunk_"):
+                chunk = next(
+                    (item for item in chunks if item.get("id") == chunk_ref),
+                    None,
+                )
+            else:
+                try:
+                    chunk_index = int(chunk_ref)
+                except ValueError:
+                    chunk_index = -1
+                chunk = next(
+                    (item for item in chunks if item.get("index") == chunk_index),
+                    None,
+                )
+            if not chunk:
+                yield event.plain_result("指定された chunk が見つかりません。")
+                return
+            yield event.plain_result(self._format_chunk_detail(document, chunk))
+            return
+
         chunk_lines = []
         for chunk in chunks[:5]:
             preview = str(chunk.get("content", "")).replace("\n", " ")[:120]
             has_embedding = isinstance(chunk.get("embedding"), list)
             chunk_lines.append(
-                f"- {chunk.get('id', 'unknown')}: {preview} "
+                f"- {chunk.get('id', 'unknown')} (index: {chunk.get('index', 'unknown')}): {preview} "
                 f"(embedding: {'あり' if has_embedding else 'なし'})"
             )
+        hint = (
+            "\n\nchunk 本文を見るには:\n"
+            f"/research show {doc_id} <chunk_index>\n"
+            f"/research show {doc_id} <chunk_id>\n"
+            "/research show <chunk_id>"
+        )
         yield event.plain_result(
             f"資料: {document['id']}\n"
             f"title: {document.get('title', '')}\n"
@@ -698,7 +760,7 @@ class ResearchNotePlugin(Star):
             f"source_uri: {document.get('source_uri', '')}\n"
             f"作成日時: {document.get('created_at', 'unknown')}\n"
             f"chunks: {len(chunks)}\n\n"
-            f"chunk preview:\n" + "\n".join(chunk_lines)
+            f"chunk preview:\n" + "\n".join(chunk_lines) + hint
         )
 
     @research_group.command("ask")

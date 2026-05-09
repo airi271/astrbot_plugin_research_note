@@ -54,6 +54,8 @@ docs/practical_steps/architecture_overview.md
 /research add <text>
 /research list
 /research show <doc_id>
+/research show <doc_id> <chunk_index|chunk_id>
+/research show <chunk_id>
 /research search <query>
 /research ask <question>
 /research agent <task>
