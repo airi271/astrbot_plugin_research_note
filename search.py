@@ -10,24 +10,33 @@ def tokenize(text: str) -> list[str]:
         if token:
             tokens.append(token)
     return tokens
-# 计算一个 note 与问题的相关度得分，简单地统计问题中的单词在 note 内容中出现的次数
-def score_note(question: str, note: dict) -> int:
+
+
+# 计算一个资料片段与问题的相关度得分，简单地统计问题中的单词在内容中出现的次数
+def score_item(question: str, item: dict) -> int:
     tokens = tokenize(question)
-    content = str(note.get("content", "")).lower()
+    content = str(item.get("content", "")).lower()
     score = 0
     for token in tokens:
         if token in content:
             score += 1
     return score
-    # 根据问题和 notes 列表，计算每个 note 的相关度得分，返回得分最高的 top_k 个 notes
+
+
+# 根据问题和资料列表，计算相关度得分，返回得分最高的 top_k 个项目
 def search_notes(question: str, notes: list[dict], top_k: int = 3) -> list[dict]:
     scored = []
     for note in notes:
-        score = score_note(question, note)
+        score = score_item(question, note)
         if score > 0:
             scored.append((score, note))
     scored.sort(key=lambda item: item[0], reverse=True)
     return [note for score, note in scored[:top_k]]
+
+
+search_chunks = search_notes
+
+
 # 计算两个向量之间的余弦相似度
 def cosine_similarity(a: list[float], b: list[float]) -> float:
     if not a or not b or len(a) != len(b):
@@ -38,7 +47,9 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     if norm_a == 0 or norm_b == 0:
         return 0.0
     return dot / (norm_a * norm_b)
-# 根据问题的向量表示和 notes 列表，计算每个 note 与问题的余弦相似度得分，返回得分最高的 top_k 个 notes
+
+
+# 根据问题的向量表示和资料列表，计算余弦相似度得分，返回得分最高的 top_k 个项目
 def search_notes_by_embedding(
     query_embedding: list[float],
     notes: list[dict],
@@ -55,3 +66,6 @@ def search_notes_by_embedding(
 
     scored.sort(key=lambda item: item[0], reverse=True)
     return [note for score, note in scored[:top_k]]
+
+
+search_chunks_by_embedding = search_notes_by_embedding

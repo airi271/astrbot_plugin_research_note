@@ -1,10 +1,23 @@
-# 根据问题和相关 notes 列表，构建一个提示文本，要求 LLM 只根据这些 notes 来回答问题，并在最后注明使用了哪些 note ID
-def build_answer_prompt(question: str, notes: list[dict], max_note_chars: int = 1200, strict_grounding: bool = True,) -> str:
+# 根据问题和相关 chunks 列表，构建提示文本，要求 LLM 只根据这些资料回答问题。
+def build_answer_prompt(
+    question: str,
+    notes: list[dict],
+    max_note_chars: int = 1200,
+    strict_grounding: bool = True,
+) -> str:
     note_blocks = []
     for note in notes:
-        #max_note_chars = int(self.config.get("max_note_chars", 1200))
         content = str(note.get("content", ""))[:max_note_chars]
-        note_blocks.append(f"[{note['id']}]\n{content}")
+        source_id = note.get("id", "unknown")
+        doc_id = note.get("doc_id")
+        if doc_id:
+            source_id = f"{doc_id}/{source_id}"
+        title = note.get("title")
+        source_uri = note.get("source_uri")
+        source_meta = ""
+        if title or source_uri:
+            source_meta = f"\ntitle: {title or ''}\nsource_uri: {source_uri or ''}"
+        note_blocks.append(f"[{source_id}]{source_meta}\n{content}")
 
     sources = "\n\n".join(note_blocks)
     if strict_grounding:
@@ -22,4 +35,3 @@ def build_answer_prompt(question: str, notes: list[dict], max_note_chars: int = 
 質問:
 {question}
 """
-    

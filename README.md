@@ -1,8 +1,8 @@
 # Research Note for AstrBot
 
-Research Note is a source-grounded research assistant plugin for [AstrBot](https://github.com/AstrBotDevs/AstrBot). It lets you save research notes or source excerpts, retrieve relevant materials, and ask questions that are answered with explicit source references.
+Research Note is a source-grounded research assistant plugin for [AstrBot](https://github.com/AstrBotDevs/AstrBot). It lets you save research materials or source excerpts, retrieve relevant chunks, and ask questions that are answered with explicit source references.
 
-This plugin is being developed toward a lightweight source-grounded research workflow inside AstrBot: collect materials in chat, search them, ask grounded questions, and gradually extend the system with chunking, citations, tools, MCP, web research, and multi-agent workflows.
+This plugin is being developed toward a lightweight source-grounded research workflow inside AstrBot: collect materials in chat, split them into searchable chunks, ask grounded questions, and gradually extend the system with stronger citations, tools, MCP, web research, and multi-agent workflows.
 
 ## Architecture
 
@@ -13,21 +13,23 @@ See `docs/practical_steps/architecture_overview.md` for a short explanation of t
 ## Features
 
 - Save research materials with `/research add <text>`.
+- Store materials as documents and searchable chunks.
 - List stored materials with `/research list`.
+- Inspect a stored document with `/research show <doc_id>`.
 - Ask source-grounded questions with `/research ask <question>`.
 - Use keyword search as a safe fallback.
 - Use embedding search when an AstrBot embedding provider is available.
 - Configure search and safety options through `_conf_schema.json`.
-- Follow the practical roadmap toward document/chunk storage, citation quality, tool use, MCP, and multi-agent research workflows.
+- Follow the practical roadmap toward citation quality, tool use, MCP, and multi-agent research workflows.
 
 ## Current Status
 
-Research Note is currently an early `v0.1.0` plugin. The minimal RAG flow works, but the plugin is still evolving toward a more practical research assistant.
+Research Note is currently an early `v0.1.0` plugin. The minimal document/chunk RAG flow works, but the plugin is still evolving toward a more practical research assistant.
 
 Implemented core flow:
 
 ```text
-Add material -> Store in JSON -> Search relevant notes -> Build prompt -> Ask LLM -> Return answer with source IDs
+Add material -> Split into chunks -> Store in JSON -> Search relevant chunks -> Build prompt -> Ask LLM -> Return answer with source IDs
 ```
 
 Planned practical improvements are documented in:
@@ -49,9 +51,9 @@ docs/practical_steps/architecture_overview.md
 /research help
 /research add <text>
 /research list
-/research show <note_id>
+/research show <doc_id>
 /research ask <question>
-/research delete <note_id> --confirm
+/research delete <doc_id> --confirm
 /research reindex
 /research clear --confirm
 ```
@@ -61,8 +63,10 @@ docs/practical_steps/architecture_overview.md
 The plugin currently supports these configuration items:
 
 - `top_k`: Number of relevant materials used for answering.
-- `max_note_chars`: Maximum characters included from each note in the prompt.
+- `max_note_chars`: Maximum characters included from each matched chunk in the prompt.
 - `max_add_chars`: Maximum characters allowed in one `/research add` call.
+- `chunk_size`: Approximate character length of each stored chunk.
+- `chunk_overlap`: Character overlap between neighboring chunks.
 - `strict_grounding`: Whether to strongly restrict answers to stored sources.
 - `show_debug_prompt`: Whether to include the generated LLM prompt in `/research ask` output.
 
@@ -70,8 +74,6 @@ The plugin currently supports these configuration items:
 
 The next practical milestones are:
 
-- Clean up the learning-stage implementation.
-- Move from note-level storage to document and chunk storage.
 - Improve hybrid search and citation quality.
 - Expose Research Note as AstrBot `FunctionTool`s.
 - Add `/research agent` with `tool_loop_agent()`.

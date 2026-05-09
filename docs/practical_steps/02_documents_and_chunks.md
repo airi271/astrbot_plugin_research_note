@@ -13,7 +13,7 @@
 - 長文資料を chunk 分割できるようにする。
 - 検索結果を note 単位ではなく chunk 単位にする。
 - 回答の根拠に `doc_id`、`chunk_id`、title、source_uri を出す。
-- 既存の `research_notes.json` から新形式へ移行できるようにする。
+- 空の `research_notes.json` から新形式で保存を始められるようにする。
 
 ## なぜ Document と Chunk に分けるのか
 
@@ -63,12 +63,11 @@ prompts.py
 _conf_schema.json
 ```
 
-新しく作る候補です。
+新しく作る候補です。今回の最小実装では `chunking.py` だけを追加します。
 
 ```text
 models.py
 chunking.py
-migrations.py
 ```
 
 最初は dataclass を使わず dict のままでもよいです。ただし、形を明確にするために `models.py` にコメントや型 alias を置くと読みやすくなります。
@@ -104,7 +103,7 @@ Chunk の例です。
 
 ```json
 {
-  "id": "chunk_001",
+  "id": "chunk_001_000",
   "doc_id": "doc_001",
   "index": 0,
   "content": "Transformer は attention を使います。",
@@ -239,10 +238,10 @@ title: Transformer memo
 source: text
 chunks: 3
 
-[chunk_001]
+[chunk_001_000]
 Transformer は attention...
 
-[chunk_002]
+[chunk_001_001]
 Self-attention は...
 ```
 
@@ -269,46 +268,29 @@ def get_document_by_id(documents: list[dict], doc_id: str) -> dict | None:
 
 ## Step 8: prompt を chunk 用に変える
 
-今は `[note_001]` のように出しています。
+Phase 1 では `[note_001]` のように出していました。
 
 chunk 化後は以下のようにします。
 
 ```text
-[doc_001 / chunk_001]
+[doc_001 / chunk_001_000]
 title: Transformer memo
 source: text
 content:
 Transformer は attention を使います。
 ```
 
-LLM には、回答で `doc_001/chunk_001` を示すように指示します。
+LLM には、回答で `doc_001/chunk_001_000` のような source を示すように指示します。
 
-## Step 9: migration を作る
+## Step 9: 新形式だけに絞る
 
-既存の `research_notes.json` は list 形式です。
+今回は旧データが空なので、旧 list 形式からの migration は作りません。余計な互換処理を入れると、保存形式が2種類あるように見えてコードが読みにくくなります。
 
-```json
-[
-  {"id": "note_001", "content": "..."}
-]
-```
+最小実装の方針です。
 
-これを新形式に変換します。
-
-```text
-note_001 -> doc_001
-note content -> chunk 分割
-note created_at -> document created_at
-note embedding -> chunk が1つなら引き継ぎ、複数なら reindex 推奨
-```
-
-最初は自動 migration でなく、`/research migrate` コマンドでもよいです。
-
-安全な進め方です。
-
-- 旧ファイルを `research_notes.json.bak` にコピーする。
-- 新ファイル `research_store.json` を作る。
-- 成功したら新形式を使う。
+- `load_store()` は `schema_version: 2` の dict だけを読む。
+- ファイルがない、壊れている、形式が違う場合は空 store を返す。
+- `save_store()` は必ず `schema_version: 2`、`documents`、`chunks` を保存する。
 
 ## 動作確認
 
@@ -344,19 +326,19 @@ note embedding -> chunk が1つなら引き継ぎ、複数なら reindex 推奨
 
 ### overlap が chunk_size より大きい
 
-`chunk_overlap < chunk_size` になるように validation します。
+`chunk_overlap < chunk_size` になるように調整します。今回の実装では、設定値が大きすぎる場合は `chunk_size - 1` に丸めています。
 
 ### 同じ chunk が無限に作られる
 
 次の開始位置が前に進んでいるか確認します。
 
-悪い例です。
+注意が必要な例です。
 
 ```text
 start = start + chunk_size - chunk_overlap
 ```
 
-この値が 0 以下になると無限 loop になります。
+この値が 0 以下になると無限 loop になります。実装では `chunk_size` を最低1にし、`chunk_overlap` を `chunk_size - 1` 以下に丸めて防ぎます。
 
 ### Document は見えるが検索されない
 
@@ -371,7 +353,7 @@ start = start + chunk_size - chunk_overlap
 - `/research show <doc_id>` が metadata と chunk preview を出す。
 - `/research ask` が chunk 単位で検索する。
 - 回答の source に `doc_id` と `chunk_id` が出る。
-- 旧 `research_notes.json` から新形式へ移行できる。
+- 旧データ移行用の余計な互換処理を持たない。
 
 ## 実装例
 
@@ -413,48 +395,6 @@ def split_text_into_chunks(
     return chunks
 ```
 
-### migrations.py
-
-旧 `note_001` を `doc_001` と `chunk_001` に変換します。
-
-```python
-def migrate_v1_notes_to_v2_store(notes: list[dict]) -> dict:
-    # Convert the old note list into the new document/chunk store.
-    documents = []
-    chunks = []
-
-    for index, note in enumerate(notes, start=1):
-        doc_id = f"doc_{index:03d}"
-        chunk_id = f"chunk_{index:03d}"
-        content = str(note.get("content", ""))
-        created_at = note.get("created_at")
-
-        documents.append(
-            {
-                "id": doc_id,
-                "project_id": "default",
-                "title": content.replace("\n", " ")[:40] or doc_id,
-                "source_type": "note_migration",
-                "source_uri": "",
-                "tags": [],
-                "created_at": created_at,
-                "updated_at": created_at,
-            }
-        )
-        chunks.append(
-            {
-                "id": chunk_id,
-                "doc_id": doc_id,
-                "index": 0,
-                "content": content,
-                "embedding": note.get("embedding"),
-                "metadata": {"migrated_from": note.get("id")},
-            }
-        )
-
-    return {"schema_version": 2, "documents": documents, "chunks": chunks}
-```
-
 ### store.py
 
 常に同じ形の dict を返すようにします。
@@ -465,43 +405,40 @@ from pathlib import Path
 
 from astrbot.api import logger
 
-from .migrations import migrate_v1_notes_to_v2_store
-
-
 EMPTY_STORE = {"schema_version": 2, "documents": [], "chunks": []}
 
 
-class ResearchStore:
-    def __init__(self, store_file: Path):
-        self.store_file = store_file
-        self.store_file.parent.mkdir(parents=True, exist_ok=True)
+class NoteStore:
+    def __init__(self, notes_file: Path):
+        self.notes_file = notes_file
+        self.notes_file.parent.mkdir(parents=True, exist_ok=True)
 
     def load_store(self) -> dict:
         # Keep command code simple by hiding file/schema problems here.
-        if not self.store_file.exists():
+        if not self.notes_file.exists():
             return dict(EMPTY_STORE)
         try:
-            with self.store_file.open("r", encoding="utf-8") as f:
+            with self.notes_file.open("r", encoding="utf-8") as f:
                 data = json.load(f)
         except json.JSONDecodeError:
-            logger.error("research_store.json is broken.", exc_info=True)
+            logger.error("research_notes.json is broken.", exc_info=True)
             return dict(EMPTY_STORE)
 
-        if isinstance(data, list):
-            return migrate_v1_notes_to_v2_store(data)
         if not isinstance(data, dict) or data.get("schema_version") != 2:
             return dict(EMPTY_STORE)
 
-        data.setdefault("documents", [])
-        data.setdefault("chunks", [])
-        return data
+        return {
+            "schema_version": 2,
+            "documents": data.get("documents", []),
+            "chunks": data.get("chunks", []),
+        }
 
     def save_store(self, data: dict) -> None:
         # Atomic write prevents partially written JSON from replacing good data.
-        tmp_file = self.store_file.with_suffix(".json.tmp")
+        tmp_file = self.notes_file.with_suffix(".json.tmp")
         with tmp_file.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        tmp_file.replace(self.store_file)
+        tmp_file.replace(self.notes_file)
 ```
 
 ### add の内部処理
@@ -509,24 +446,26 @@ class ResearchStore:
 `/research add` では Document を1件作り、本文を複数 Chunk に分けます。
 
 ```python
-def next_prefixed_id(items: list[dict], prefix: str) -> str:
-    # Example: prefix="doc" -> doc_001, doc_002, ...
-    marker = f"{prefix}_"
+def _next_doc_id(documents: list[dict]) -> str:
     max_num = 0
-    for item in items:
-        item_id = str(item.get("id", ""))
-        if not item_id.startswith(marker):
+    for document in documents:
+        doc_id = str(document.get("id", ""))
+        if not doc_id.startswith("doc_"):
             continue
         try:
-            max_num = max(max_num, int(item_id.removeprefix(marker)))
+            max_num = max(max_num, int(doc_id.removeprefix("doc_")))
         except ValueError:
             continue
-    return f"{prefix}_{max_num + 1:03d}"
+    return f"doc_{max_num + 1:03d}"
+
+
+def _chunk_id(doc_id: str, index: int) -> str:
+    return f"chunk_{doc_id.removeprefix('doc_')}_{index:03d}"
 ```
 
 ```python
 data = self.store.load_store()
-doc_id = next_prefixed_id(data["documents"], "doc")
+doc_id = self._next_doc_id(data["documents"])
 now = datetime.now().isoformat(timespec="seconds")
 
 document = {
@@ -549,14 +488,12 @@ chunk_texts = split_text_into_chunks(
 embedding_provider = self._get_embedding_provider()
 new_chunks = []
 for index, chunk_text in enumerate(chunk_texts):
-    # Generate IDs against existing chunks plus chunks made in this loop.
-    chunk_id = next_prefixed_id(data["chunks"] + new_chunks, "chunk")
     embedding = None
     if embedding_provider:
         embedding = await embedding_provider.get_embedding(chunk_text)
     new_chunks.append(
         {
-            "id": chunk_id,
+            "id": self._chunk_id(doc_id, index),
             "doc_id": doc_id,
             "index": index,
             "content": chunk_text,

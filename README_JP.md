@@ -2,28 +2,30 @@
 
 Research Note は、[AstrBot](https://github.com/AstrBotDevs/AstrBot) 上で動く、根拠付きの研究補助プラグインです。研究メモや資料の抜粋を保存し、関連する内容を検索し、保存済み資料に基づいて質問に回答することを目指しています。
 
-このプラグインは、チャットの中で資料を集め、検索し、根拠を確認しながら AI に質問できる軽量な研究支援ワークフローを作るために開発しています。
+このプラグインは、チャットの中で資料を集め、検索し、根拠を確認しながら AI に質問できる軽量な研究支援ワークフローを作るために開発しています。保存した資料は Document と Chunk に分けて扱います。
 
 ## 主な機能
 
 - `/research add <text>` で研究資料やメモを保存できます。
+- 保存した資料を Document と検索用 Chunk に分けて管理できます。
 - `/research list` で保存済み資料を一覧できます。
+- `/research show <doc_id>` で資料の metadata と chunk preview を確認できます。
 - `/research ask <question>` で保存済み資料に基づいて質問できます。
 - embedding provider がない場合でも、キーワード検索で動作します。
 - embedding provider がある場合は、意味の近さによる検索も利用できます。
 - `_conf_schema.json` で検索件数や安全設定を変更できます。
-- 今後、Document / Chunk 管理、引用改善、Tool 化、MCP 連携、Multi-Agent 化へ拡張する計画です。
+- 今後、引用改善、Tool 化、MCP 連携、Multi-Agent 化へ拡張する計画です。
 
 ## 現在の状態
 
 現在のバージョンは `v0.1.0` です。
 
-最小構成の RAG フローが動作します。RAG とは、AI が直接回答するだけでなく、先に関連資料を検索し、その資料をもとに回答する仕組みです。
+最小構成の Document / Chunk RAG フローが動作します。RAG とは、AI が直接回答するだけでなく、先に関連資料を検索し、その資料をもとに回答する仕組みです。
 
 現在の基本フローです。
 
 ```text
-資料を追加する -> JSON に保存する -> 関連資料を検索する -> プロンプトを作る -> LLM に渡す -> 使用資料 ID 付きで回答する
+資料を追加する -> chunk に分割する -> JSON に保存する -> 関連 chunk を検索する -> プロンプトを作る -> LLM に渡す -> 使用資料 ID 付きで回答する
 ```
 
 実用化に向けた計画は以下にあります。
@@ -45,9 +47,9 @@ docs/practical_steps/architecture_overview.md
 /research help
 /research add <text>
 /research list
-/research show <note_id>
+/research show <doc_id>
 /research ask <question>
-/research delete <note_id> --confirm
+/research delete <doc_id> --confirm
 /research reindex
 /research clear --confirm
 ```
@@ -69,7 +71,7 @@ docs/practical_steps/architecture_overview.md
 1件の資料を表示します。
 
 ```text
-/research show note_001
+/research show doc_001
 ```
 
 資料に基づいて質問します。
@@ -81,7 +83,7 @@ docs/practical_steps/architecture_overview.md
 指定した資料を削除します。
 
 ```text
-/research delete note_001 --confirm
+/research delete doc_001 --confirm
 ```
 
 既存資料の embedding を再作成します。
@@ -113,8 +115,10 @@ docs/practical_steps/architecture_overview.md
 現在の主な設定項目です。
 
 - `top_k`: 質問時に使う関連資料の数。
-- `max_note_chars`: 1件の資料からプロンプトに入れる最大文字数。
+- `max_note_chars`: 1件の検索結果 chunk からプロンプトに入れる最大文字数。
 - `max_add_chars`: 1回で追加できる資料の最大文字数。
+- `chunk_size`: 資料を分割する chunk の文字数。
+- `chunk_overlap`: 隣り合う chunk で重ねる文字数。
 - `strict_grounding`: 資料にないことを推測しないよう強く指示するかどうか。
 - `show_debug_prompt`: `/research ask` の出力に実際の prompt を表示するかどうか。
 
@@ -122,8 +126,6 @@ docs/practical_steps/architecture_overview.md
 
 今後の主な開発予定です。
 
-- 学習段階の実装を整理し、保存と削除をより安全にする。
-- note 単位の保存から Document / Chunk 単位の保存へ移行する。
 - キーワード検索と embedding 検索を組み合わせた hybrid search を実装する。
 - 回答に使った根拠資料をより分かりやすく表示する。
 - Research Note の検索機能を AstrBot の `FunctionTool` として公開する。

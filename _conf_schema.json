@@ -20,6 +20,20 @@
     "minimum": 100,
     "maximum": 50000
   },
+  "chunk_size": {
+    "description": "資料を分割する chunk の文字数",
+    "type": "int",
+    "default": 800,
+    "minimum": 200,
+    "maximum": 3000
+  },
+  "chunk_overlap": {
+    "description": "隣り合う chunk で重ねる文字数",
+    "type": "int",
+    "default": 120,
+    "minimum": 0,
+    "maximum": 1000
+  },
   "strict_grounding": {
     "description": "資料にないことを推測しないよう強く指示する",
     "type": "bool",

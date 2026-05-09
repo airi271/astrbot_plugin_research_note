@@ -5,8 +5,9 @@ from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
+from .chunking import split_text_into_chunks
 from .prompts import build_answer_prompt
-from .search import search_notes, search_notes_by_embedding
+from .search import search_chunks, search_chunks_by_embedding
 from .store import NoteStore
 
 
@@ -24,27 +25,33 @@ class ResearchNotePlugin(Star):
         self.notes_file = self.data_dir / "research_notes.json"
         self.store = NoteStore(self.notes_file)
 
-    # 生成新的 note id，避免删除资料后重复使用旧 id。
-    def _next_note_id(self, notes: list[dict]) -> str:
+    # 生成新的 doc id，避免删除资料后重复使用旧 id。
+    def _next_doc_id(self, documents: list[dict]) -> str:
         max_num = 0
-        for note in notes:
-            note_id = str(note.get("id", ""))
-            if not note_id.startswith("note_"):
+        for document in documents:
+            doc_id = str(document.get("id", ""))
+            if not doc_id.startswith("doc_"):
                 continue
             try:
-                max_num = max(max_num, int(note_id.removeprefix("note_")))
+                max_num = max(max_num, int(doc_id.removeprefix("doc_")))
             except ValueError:
                 continue
-        return f"note_{max_num + 1:03d}"
+        return f"doc_{max_num + 1:03d}"
 
-    # 统一用户输入的资料 id，支持 "001" 和 "note_001" 两种写法。
-    def _normalize_note_id(self, note_id: str) -> str:
-        note_id = note_id.strip()
-        if not note_id:
+    # 一个 document 内で chunk id を連番にする。
+    def _chunk_id(self, doc_id: str, index: int) -> str:
+        return f"chunk_{doc_id.removeprefix('doc_')}_{index:03d}"
+
+    # 统一用户输入的资料 id，支持 "001"、"doc_001" 和旧的 "note_001" 写法。
+    def _normalize_doc_id(self, doc_id: str) -> str:
+        doc_id = doc_id.strip()
+        if not doc_id:
             return ""
-        if note_id.startswith("note_"):
-            return note_id
-        return f"note_{note_id}"
+        if doc_id.startswith("doc_"):
+            return doc_id
+        if doc_id.startswith("note_"):
+            return f"doc_{doc_id.removeprefix('note_')}"
+        return f"doc_{doc_id}"
 
     # 从 /research 子命令后面提取用户输入的自由文本。
     def _extract_research_tail(self, event: AstrMessageEvent) -> str:
@@ -66,6 +73,18 @@ class ResearchNotePlugin(Star):
             return None
         return providers[0]
 
+    # prompt と検索用に chunk へ document metadata を付ける。
+    def _chunks_with_document_metadata(self, store: dict) -> list[dict]:
+        documents_by_id = {doc.get("id"): doc for doc in store["documents"]}
+        chunks = []
+        for chunk in store["chunks"]:
+            document = documents_by_id.get(chunk.get("doc_id"), {})
+            enriched = dict(chunk)
+            enriched["title"] = document.get("title", "")
+            enriched["source_uri"] = document.get("source_uri", "")
+            chunks.append(enriched)
+        return chunks
+
     async def initialize(self):
         """Optional async initialization hook."""
 
@@ -80,9 +99,9 @@ class ResearchNotePlugin(Star):
         text = """Research Note commands:
     /research add <text> - 資料を追加
     /research list - 資料一覧
-    /research show <note_id> - 指定した資料を表示
+    /research show <doc_id> - 指定した資料を表示
     /research ask <question> - 資料に基づいて質問
-    /research delete <note_id> --confirm - 指定した資料を削除
+    /research delete <doc_id> --confirm - 指定した資料を削除
     /research reindex - 既存資料の embedding を再作成
     /research clear --confirm - 全資料を削除
     /research help - このヘルプを表示
@@ -92,7 +111,7 @@ class ResearchNotePlugin(Star):
     @research_group.command("add")
     async def research_add(self, event: AstrMessageEvent, content: str = ""):
         """資料を追加します。"""
-        # 先读取并检查文本，再生成 embedding。
+        # 先读取并检查文本，再分割为 chunks。
         content = self._extract_research_tail(event)
         if not content:
             yield event.plain_result("追加する資料テキストを入力してください。")
@@ -103,101 +122,145 @@ class ResearchNotePlugin(Star):
             yield event.plain_result(f"資料が長すぎます。最大 {max_add_chars} 文字までです。")
             return
 
-        # embedding 是可选的；没有 embedding 时仍然可以用关键词搜索。
-        embedding = None
-        embedding_provider = self._get_embedding_provider()
-        if embedding_provider:
-            embedding = await embedding_provider.get_embedding(content)
-
-        # Phase 2 之前先保持 note 级别的保存格式。
-        notes = self.store.load_notes()
-        note = {
-            "id": self._next_note_id(notes),
-            "content": content,
-            "created_at": datetime.now().isoformat(timespec="seconds"),
-            "embedding": embedding,
+        store = self.store.load_store()
+        now = datetime.now().isoformat(timespec="seconds")
+        doc_id = self._next_doc_id(store["documents"])
+        document = {
+            "id": doc_id,
+            "project_id": "default",
+            "title": content.replace("\n", " ")[:60] or doc_id,
+            "source_type": "text",
+            "source_uri": "",
+            "tags": [],
+            "created_at": now,
+            "updated_at": now,
         }
-        notes.append(note)
-        self.store.save_notes(notes)
 
-        yield event.plain_result(f"資料を保存しました: {note['id']}")
+        chunk_texts = split_text_into_chunks(
+            content,
+            chunk_size=int(self.config.get("chunk_size", 800)),
+            chunk_overlap=int(self.config.get("chunk_overlap", 120)),
+        )
+        embedding_provider = self._get_embedding_provider()
+        chunks = []
+        for index, chunk_text in enumerate(chunk_texts):
+            embedding = None
+            if embedding_provider:
+                embedding = await embedding_provider.get_embedding(chunk_text)
+            chunks.append(
+                {
+                    "id": self._chunk_id(doc_id, index),
+                    "doc_id": doc_id,
+                    "index": index,
+                    "content": chunk_text,
+                    "embedding": embedding,
+                    "metadata": {},
+                }
+            )
+
+        store["documents"].append(document)
+        store["chunks"].extend(chunks)
+        self.store.save_store(store)
+
+        yield event.plain_result(f"資料を保存しました: {doc_id}\nchunks: {len(chunks)}")
 
     @research_group.command("list")
     async def research_list(self, event: AstrMessageEvent):
         """保存済み資料を表示します。"""
-        # 列表中只显示短预览，避免长资料刷屏。
-        notes = self.store.load_notes()
-        if not notes:
+        # 列表中只显示 document 和 chunk 数，避免长资料刷屏。
+        store = self.store.load_store()
+        documents = store["documents"]
+        if not documents:
             yield event.plain_result("保存済み資料はありません。")
             return
 
+        chunk_counts = {}
+        for chunk in store["chunks"]:
+            doc_id = chunk.get("doc_id")
+            chunk_counts[doc_id] = chunk_counts.get(doc_id, 0) + 1
+
         lines = ["保存済み資料:"]
-        for note in notes[:10]:
-            preview = str(note.get("content", "")).replace("\n", " ")[:60]
-            lines.append(f"- {note.get('id', 'unknown')}: {preview}")
+        for document in documents[:10]:
+            doc_id = document.get("id", "unknown")
+            title = document.get("title") or doc_id
+            lines.append(f"- {doc_id}: {title} (chunks: {chunk_counts.get(doc_id, 0)})")
         yield event.plain_result("\n".join(lines))
 
     @research_group.command("show")
-    async def research_show(self, event: AstrMessageEvent, note_id: str = ""):
+    async def research_show(self, event: AstrMessageEvent, doc_id: str = ""):
         """保存済み資料を表示します。"""
-        # 显示单条资料及其 metadata，方便检查资料和引用。
-        note_id = self._normalize_note_id(self._extract_research_tail(event))
-        if not note_id:
+        # 显示单条资料及其 chunk preview，方便检查资料和引用。
+        doc_id = self._normalize_doc_id(self._extract_research_tail(event))
+        if not doc_id:
             yield event.plain_result("資料IDを指定してください。")
             return
 
-        notes = self.store.load_notes()
-        if not notes:
+        store = self.store.load_store()
+        if not store["documents"]:
             yield event.plain_result("保存済み資料はありません。")
             return
 
-        note = next((n for n in notes if n.get("id") == note_id), None)
-        if not note:
+        document = next(
+            (doc for doc in store["documents"] if doc.get("id") == doc_id), None
+        )
+        if not document:
             yield event.plain_result("指定された資料が見つかりません。")
             return
 
-        has_embedding = isinstance(note.get("embedding"), list)
+        chunks = [chunk for chunk in store["chunks"] if chunk.get("doc_id") == doc_id]
+        chunk_lines = []
+        for chunk in chunks[:5]:
+            preview = str(chunk.get("content", "")).replace("\n", " ")[:120]
+            has_embedding = isinstance(chunk.get("embedding"), list)
+            chunk_lines.append(
+                f"- {chunk.get('id', 'unknown')}: {preview} "
+                f"(embedding: {'あり' if has_embedding else 'なし'})"
+            )
         yield event.plain_result(
-            f"資料: {note['id']}\n"
-            f"作成日時: {note.get('created_at', 'unknown')}\n"
-            f"embedding: {'あり' if has_embedding else 'なし'}\n\n"
-            f"内容:\n{note.get('content', '')}"
+            f"資料: {document['id']}\n"
+            f"title: {document.get('title', '')}\n"
+            f"source: {document.get('source_type', 'text')}\n"
+            f"source_uri: {document.get('source_uri', '')}\n"
+            f"作成日時: {document.get('created_at', 'unknown')}\n"
+            f"chunks: {len(chunks)}\n\n"
+            f"chunk preview:\n" + "\n".join(chunk_lines)
         )
 
     @research_group.command("ask")
     async def research_ask(self, event: AstrMessageEvent, question: str = ""):
         """資料に基づいて質問します。"""
-        # ask 是固定 RAG 流程：先检索资料，再构造 prompt，最后调用 LLM。
+        # ask 是固定 RAG 流程：先检索 chunks，再构造 prompt，最后调用 LLM。
         question = self._extract_research_tail(event)
         if not question:
             yield event.plain_result("質問を入力してください。")
             return
 
-        notes = self.store.load_notes()
-        if not notes:
+        store = self.store.load_store()
+        chunks = self._chunks_with_document_metadata(store)
+        if not chunks:
             yield event.plain_result("保存済み資料がありません。先に /research add で資料を追加してください。")
             return
 
         top_k = int(self.config.get("top_k", 3))
         embedding_provider = self._get_embedding_provider()
         if not embedding_provider:
-            matched_notes = search_notes(question, notes, top_k=top_k)
+            matched_chunks = search_chunks(question, chunks, top_k=top_k)
         else:
             # 如果 embedding 搜索没有结果，则回退到关键词搜索。
             query_embedding = await embedding_provider.get_embedding(question)
-            matched_notes = search_notes_by_embedding(query_embedding, notes, top_k=top_k)
-            logger.info(f"Found {len(matched_notes)} matched notes using embedding search.")
-            if not matched_notes:
-                matched_notes = search_notes(question, notes, top_k=top_k)
+            matched_chunks = search_chunks_by_embedding(query_embedding, chunks, top_k=top_k)
+            logger.info(f"Found {len(matched_chunks)} matched chunks using embedding search.")
+            if not matched_chunks:
+                matched_chunks = search_chunks(question, chunks, top_k=top_k)
 
-        if not matched_notes:
+        if not matched_chunks:
             yield event.plain_result("関連する資料が見つかりませんでした。")
             return
 
         # prompt 构造放在 prompts.py 中，保持命令逻辑简洁。
         prompt = build_answer_prompt(
             question,
-            matched_notes,
+            matched_chunks,
             max_note_chars=int(self.config.get("max_note_chars", 1200)),
             strict_grounding=self.config.get("strict_grounding", True),
         )
@@ -216,7 +279,10 @@ class ResearchNotePlugin(Star):
             prompt=prompt,
         )
         answer = llm_resp.completion_text if llm_resp else "回答を生成できませんでした。"
-        source_ids = ", ".join(note["id"] for note in matched_notes)
+        source_ids = ", ".join(
+            f"{chunk.get('doc_id', 'unknown')}/{chunk.get('id', 'unknown')}"
+            for chunk in matched_chunks
+        )
         result = f"{answer}\n\n使用資料: {source_ids}"
         # debug prompt 只在开发时显示，默认不输出给用户。
         if self.config.get("show_debug_prompt", False):
@@ -227,7 +293,7 @@ class ResearchNotePlugin(Star):
     async def research_delete(
         self,
         event: AstrMessageEvent,
-        note_id: str = "",
+        doc_id: str = "",
         confirm: str | None = None,
     ):
         """保存済み資料を削除します。"""
@@ -238,54 +304,58 @@ class ResearchNotePlugin(Star):
                 confirm = "--confirm"
             else:
                 yield event.plain_result(
-                    "削除するには /research delete <note_id> --confirm を実行してください。"
+                    "削除するには /research delete <doc_id> --confirm を実行してください。"
                 )
                 return
 
-        note_id = self._normalize_note_id(
-            raw_tail.replace("--confirm", "").strip()
-        )
-        if not note_id:
+        doc_id = self._normalize_doc_id(raw_tail.replace("--confirm", "").strip())
+        if not doc_id:
             yield event.plain_result("資料IDを指定してください。")
             return
 
-        # 通过创建新列表来删除资料，再交给 store 做原子保存。
-        notes = self.store.load_notes()
-        if not notes:
+        # document と関連 chunk をまとめて削除する。
+        store = self.store.load_store()
+        if not store["documents"]:
             yield event.plain_result("保存済み資料はありません。")
             return
 
-        new_notes = [note for note in notes if note.get("id") != note_id]
-        if len(new_notes) == len(notes):
+        new_documents = [
+            doc for doc in store["documents"] if doc.get("id") != doc_id
+        ]
+        if len(new_documents) == len(store["documents"]):
             yield event.plain_result("指定された資料が見つかりません。")
             return
 
-        self.store.save_notes(new_notes)
-        yield event.plain_result(f"資料を削除しました: {note_id}")
+        store["documents"] = new_documents
+        store["chunks"] = [
+            chunk for chunk in store["chunks"] if chunk.get("doc_id") != doc_id
+        ]
+        self.store.save_store(store)
+        yield event.plain_result(f"資料を削除しました: {doc_id}")
 
     @research_group.command("reindex")
     async def research_reindex(self, event: AstrMessageEvent):
         """既存資料の embedding を再作成します。"""
-        # reindex 用于给旧资料重新生成 embedding。
+        # reindex 用于给 chunks 重新生成 embedding。
         embedding_provider = self._get_embedding_provider()
         if not embedding_provider:
             yield event.plain_result("embedding provider が設定されていません。")
             return
 
-        notes = self.store.load_notes()
-        if not notes:
+        store = self.store.load_store()
+        if not store["chunks"]:
             yield event.plain_result("保存済み資料はありません。")
             return
 
         updated = 0
-        for note in notes:
-            content = str(note.get("content", ""))
+        for chunk in store["chunks"]:
+            content = str(chunk.get("content", ""))
             if not content:
                 continue
-            note["embedding"] = await embedding_provider.get_embedding(content)
+            chunk["embedding"] = await embedding_provider.get_embedding(content)
             updated += 1
 
-        self.store.save_notes(notes)
+        self.store.save_store(store)
         yield event.plain_result(f"embedding を再作成しました: {updated} 件")
 
     @research_group.command("clear")
@@ -295,7 +365,7 @@ class ResearchNotePlugin(Star):
         if confirm != "--confirm":
             yield event.plain_result("削除するには /research clear --confirm を実行してください。")
             return
-        self.store.save_notes([])
+        self.store.save_store({"schema_version": 2, "documents": [], "chunks": []})
         yield event.plain_result("保存済み資料をすべて削除しました。")
 
     async def terminate(self):

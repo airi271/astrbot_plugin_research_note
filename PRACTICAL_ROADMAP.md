@@ -248,7 +248,7 @@ AstrBot の SubAgent Orchestrator を使う場合は、設定で `transfer_to_*`
 - chunk size、chunk overlap を設定化する。
 - 検索結果は chunk 単位にする。
 - 回答の source は `doc_id`、`chunk_id`、title、source_uri を出す。
-- 既存 `research_notes.json` から新形式へ移行する migration を作る。
+- 空の `research_notes.json` から新形式で保存を始める。
 
 完了条件です。
 
