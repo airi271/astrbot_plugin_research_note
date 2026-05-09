@@ -7,7 +7,7 @@ from astrbot.api.star import Context, Star, register
 
 from .chunking import split_text_into_chunks
 from .prompts import build_answer_prompt
-from .search import search_chunks, search_chunks_by_embedding
+from .search import search_chunks_by_embedding
 from .store import NoteStore
 
 
@@ -66,12 +66,43 @@ class ResearchNotePlugin(Star):
                 return raw_text[len(prefix) :].strip()
         return ""
 
-    # 获取第一个可用的 embedding provider；没有时仍然可以使用关键词搜索。
+    # 获取第一个可用的 embedding provider。
     def _get_embedding_provider(self):
         providers = self.context.get_all_embedding_providers()
         if not providers:
             return None
         return providers[0]
+
+    # embedding API の長さ制限エラーだけを、追加分割で回復できるエラーとして扱う。
+    def _is_embedding_length_error(self, error: Exception) -> bool:
+        message = str(error).lower()
+        return "context length" in message or "input length" in message
+
+    # 長すぎる chunk はさらに分割し、全ての保存 chunk に embedding を付ける。
+    async def _split_text_for_embedding(
+        self,
+        embedding_provider,
+        text: str,
+        min_chars: int = 80,
+    ) -> list[tuple[str, list[float]]]:
+        try:
+            embedding = await embedding_provider.get_embedding(text)
+            return [(text, embedding)]
+        except Exception as exc:
+            if len(text) <= min_chars or not self._is_embedding_length_error(exc):
+                raise
+            midpoint = len(text) // 2
+            parts = []
+            for part in (text[:midpoint].strip(), text[midpoint:].strip()):
+                if part:
+                    parts.extend(
+                        await self._split_text_for_embedding(
+                            embedding_provider,
+                            part,
+                            min_chars=min_chars,
+                        )
+                    )
+            return parts
 
     # prompt と検索用に chunk へ document metadata を付ける。
     def _chunks_with_document_metadata(self, store: dict) -> list[dict]:
@@ -142,11 +173,28 @@ class ResearchNotePlugin(Star):
             chunk_overlap=int(self.config.get("chunk_overlap", 120)),
         )
         embedding_provider = self._get_embedding_provider()
+        if not embedding_provider:
+            yield event.plain_result("embedding provider が設定されていません。")
+            return
+
+        try:
+            embedded_chunks = []
+            for chunk_text in chunk_texts:
+                embedded_chunks.extend(
+                    await self._split_text_for_embedding(embedding_provider, chunk_text)
+                )
+        except Exception:
+            logger.error(
+                "Failed to generate embeddings for added document.", exc_info=True
+            )
+            yield event.plain_result(
+                "embedding の作成に失敗したため、資料は保存しませんでした。"
+                "chunk_size を小さくして再試行してください。"
+            )
+            return
+
         chunks = []
-        for index, chunk_text in enumerate(chunk_texts):
-            embedding = None
-            if embedding_provider:
-                embedding = await embedding_provider.get_embedding(chunk_text)
+        for index, (chunk_text, embedding) in enumerate(embedded_chunks):
             chunks.append(
                 {
                     "id": self._chunk_id(doc_id, index),
@@ -162,7 +210,11 @@ class ResearchNotePlugin(Star):
         store["chunks"].extend(chunks)
         self.store.save_store(store)
 
-        yield event.plain_result(f"資料を保存しました: {doc_id}\nchunks: {len(chunks)}")
+        yield event.plain_result(
+            f"資料を保存しました: {doc_id}\n"
+            f"chunks: {len(chunks)}\n"
+            "embedding: 全 chunk 作成済み"
+        )
 
     @research_group.command("list")
     async def research_list(self, event: AstrMessageEvent):
@@ -183,7 +235,9 @@ class ResearchNotePlugin(Star):
         for document in documents[:10]:
             doc_id = document.get("id", "unknown")
             title = document.get("title") or doc_id
-            lines.append(f"- {doc_id}: {title} (chunks: {chunk_counts.get(doc_id, 0)})")
+            lines.append(
+                f"- {doc_id}: {title} (chunks: {chunk_counts.get(doc_id, 0)})"
+            )
         yield event.plain_result("\n".join(lines))
 
     @research_group.command("show")
@@ -238,20 +292,36 @@ class ResearchNotePlugin(Star):
         store = self.store.load_store()
         chunks = self._chunks_with_document_metadata(store)
         if not chunks:
-            yield event.plain_result("保存済み資料がありません。先に /research add で資料を追加してください。")
+            yield event.plain_result(
+                "保存済み資料がありません。先に /research add で資料を追加してください。"
+            )
             return
 
         top_k = int(self.config.get("top_k", 3))
         embedding_provider = self._get_embedding_provider()
         if not embedding_provider:
-            matched_chunks = search_chunks(question, chunks, top_k=top_k)
-        else:
-            # 如果 embedding 搜索没有结果，则回退到关键词搜索。
+            yield event.plain_result("embedding provider が設定されていません。")
+            return
+
+        if any(not isinstance(chunk.get("embedding"), list) for chunk in chunks):
+            yield event.plain_result(
+                "embedding がない chunk があります。/research reindex を実行してください。"
+            )
+            return
+
+        try:
             query_embedding = await embedding_provider.get_embedding(question)
-            matched_chunks = search_chunks_by_embedding(query_embedding, chunks, top_k=top_k)
-            logger.info(f"Found {len(matched_chunks)} matched chunks using embedding search.")
-            if not matched_chunks:
-                matched_chunks = search_chunks(question, chunks, top_k=top_k)
+        except Exception:
+            logger.error("Failed to generate embedding for question.", exc_info=True)
+            yield event.plain_result("質問の embedding 作成に失敗しました。")
+            return
+
+        matched_chunks = search_chunks_by_embedding(
+            query_embedding, chunks, top_k=top_k
+        )
+        logger.info(
+            f"Found {len(matched_chunks)} matched chunks using embedding search."
+        )
 
         if not matched_chunks:
             yield event.plain_result("関連する資料が見つかりませんでした。")
@@ -348,13 +418,37 @@ class ResearchNotePlugin(Star):
             return
 
         updated = 0
+        counters = {}
+        new_chunks = []
         for chunk in store["chunks"]:
             content = str(chunk.get("content", ""))
             if not content:
                 continue
-            chunk["embedding"] = await embedding_provider.get_embedding(content)
-            updated += 1
+            try:
+                embedded_chunks = await self._split_text_for_embedding(
+                    embedding_provider, content
+                )
+            except Exception:
+                logger.error("Failed to regenerate chunk embedding.", exc_info=True)
+                yield event.plain_result(
+                    "embedding の再作成に失敗したため、変更は保存しませんでした。"
+                    "chunk_size を小さくして再試行してください。"
+                )
+                return
 
+            doc_id = chunk.get("doc_id", "")
+            for chunk_text, embedding in embedded_chunks:
+                index = counters.get(doc_id, 0)
+                counters[doc_id] = index + 1
+                new_chunk = dict(chunk)
+                new_chunk["id"] = self._chunk_id(doc_id, index)
+                new_chunk["index"] = index
+                new_chunk["content"] = chunk_text
+                new_chunk["embedding"] = embedding
+                new_chunks.append(new_chunk)
+                updated += 1
+
+        store["chunks"] = new_chunks
         self.store.save_store(store)
         yield event.plain_result(f"embedding を再作成しました: {updated} 件")
 

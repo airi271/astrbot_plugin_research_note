@@ -17,8 +17,7 @@ See `docs/practical_steps/architecture_overview.md` for a short explanation of t
 - List stored materials with `/research list`.
 - Inspect a stored document with `/research show <doc_id>`.
 - Ask source-grounded questions with `/research ask <question>`.
-- Use keyword search as a safe fallback.
-- Use embedding search when an AstrBot embedding provider is available.
+- Use embedding search through an AstrBot embedding provider.
 - Configure search and safety options through `_conf_schema.json`.
 - Follow the practical roadmap toward citation quality, tool use, MCP, and multi-agent research workflows.
 

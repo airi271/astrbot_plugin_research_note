@@ -14,8 +14,8 @@
 - `/research list` で保存済み資料を確認できる。
 - `/research ask` で関連資料を検索し、LLM に渡して回答できる。
 - JSON 保存ができる。
-- embedding provider がある場合は embedding 検索へ進める。
-- embedding provider がない場合はキーワード検索に戻せる。
+- embedding provider を使って embedding 検索できる。
+- 全 chunk に embedding を付ける方針で、キーワード検索 fallback は使わない。
 - `top_k`、`max_note_chars`、`max_add_chars`、`strict_grounding` を設定化できている。
 
 現在の実装は「学習用の最小 RAG」としては十分です。実用化では、次の問題を順番に解決します。
