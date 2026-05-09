@@ -50,6 +50,7 @@ docs/practical_steps/architecture_overview.md
 /research show <doc_id>
 /research search <query>
 /research ask <question>
+/research agent <task>
 /research delete <doc_id> --confirm
 /research reindex
 /research clear --confirm
@@ -85,6 +86,12 @@ embedding 検索結果を確認します。
 
 ```text
 /research ask RAG とは何ですか？
+```
+
+Research Note tools を使う agent に依頼します。
+
+```text
+/research agent 保存済み資料だけで RAG について整理して
 ```
 
 指定した資料を削除します。
@@ -128,6 +135,8 @@ docs/practical_steps/architecture_overview.md
 - `chunk_overlap`: 隣り合う chunk で重ねる文字数。
 - `min_embedding_score`: 検索結果として採用する最小 embedding score。
 - `max_context_chars`: LLM に渡す検索結果全体の最大文字数。
+- `agent_max_steps`: research agent が tool を呼ぶ最大ステップ数。
+- `agent_tool_call_timeout`: research agent の tool 呼び出し timeout 秒。
 - `strict_grounding`: 資料にないことを推測しないよう強く指示するかどうか。
 - `show_debug_prompt`: `/research ask` の出力に実際の prompt を表示するかどうか。
 
@@ -136,7 +145,6 @@ docs/practical_steps/architecture_overview.md
 今後の主な開発予定です。
 
 - 回答に使った根拠資料をより分かりやすく表示する。
-- `/research agent` を追加し、AI が必要に応じて資料検索 tool を呼べるようにする。
 - URL やファイルから資料を取り込めるようにする。
 - Web Search、MCP、Multi-Agent 連携を段階的に追加する。
 

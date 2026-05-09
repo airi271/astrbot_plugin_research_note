@@ -2,10 +2,11 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from astrbot.api import AstrBotConfig, FunctionTool, logger
+from astrbot.api import AstrBotConfig, FunctionTool, ToolSet, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
+from .agent_prompts import build_research_agent_system_prompt
 from .chunking import split_text_into_chunks
 from .prompts import build_answer_prompt
 from .store import NoteStore
@@ -69,6 +70,7 @@ class ResearchNotePlugin(Star):
             "research show",
             "research delete",
             "research search",
+            "research agent",
         ):
             if raw_text.startswith(prefix):
                 return raw_text[len(prefix) :].strip()
@@ -466,6 +468,22 @@ class ResearchNotePlugin(Star):
             return args[index]
         return ""
 
+    def _get_research_tool_set(self) -> ToolSet:
+        tool_manager = self.context.get_llm_tool_manager()
+        tool_names = (
+            "research_search",
+            "research_get_document",
+            "research_list_documents",
+            "research_add_text",
+            "research_delete_document",
+        )
+        tools = []
+        for name in tool_names:
+            tool = tool_manager.get_func(name)
+            if tool:
+                tools.append(tool)
+        return ToolSet(tools)
+
     async def initialize(self):
         """Optional async initialization hook."""
 
@@ -483,6 +501,7 @@ class ResearchNotePlugin(Star):
     /research show <doc_id> - 指定した資料を表示
     /research search <query> - embedding 検索結果を表示
     /research ask <question> - 資料に基づいて質問
+    /research agent <task> - Research Note tools を使って調査
     /research delete <doc_id> --confirm - 指定した資料を削除
     /research reindex - 既存資料の embedding を再作成
     /research clear --confirm - 全資料を削除
@@ -678,6 +697,57 @@ class ResearchNotePlugin(Star):
         if self.config.get("show_debug_prompt", False):
             result += f"\n\nprompt:\n{prompt}"
         yield event.plain_result(result)
+
+    @research_group.command("agent")
+    async def research_agent(self, event: AstrMessageEvent, task: str = ""):
+        """Research Note tools を使う agent を実行します。"""
+        # agent mode では LLM が必要に応じて Research Note tools を呼ぶ。
+        task = self._extract_research_tail(event)
+        if not task:
+            yield event.plain_result("agent に依頼する内容を入力してください。")
+            return
+
+        try:
+            provider_id = await self.context.get_current_chat_provider_id(
+                umo=event.unified_msg_origin
+            )
+        except Exception:
+            logger.error("Failed to get current chat provider.", exc_info=True)
+            yield event.plain_result("利用可能な LLM provider が見つかりません。")
+            return
+
+        tools = self._get_research_tool_set()
+        if tools.empty():
+            yield event.plain_result("Research agent で利用できる tool がありません。")
+            return
+
+        try:
+            llm_resp = await self.context.tool_loop_agent(
+                event=event,
+                chat_provider_id=provider_id,
+                prompt=task,
+                system_prompt=build_research_agent_system_prompt(
+                    strict_grounding=self.config.get("strict_grounding", True)
+                ),
+                tools=tools,
+                max_steps=int(self.config.get("agent_max_steps", 8)),
+                tool_call_timeout=int(
+                    self.config.get("agent_tool_call_timeout", 60)
+                ),
+            )
+        except Exception:
+            logger.error("Research agent failed.", exc_info=True)
+            yield event.plain_result(
+                "Research agent の実行に失敗しました。ログを確認してください。"
+            )
+            return
+
+        answer = (
+            llm_resp.completion_text
+            if llm_resp
+            else "Research agent は回答を生成できませんでした。"
+        )
+        yield event.plain_result(answer)
 
     @research_group.command("search")
     async def research_search(self, event: AstrMessageEvent, query: str = ""):

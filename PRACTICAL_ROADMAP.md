@@ -301,8 +301,9 @@ AstrBot の SubAgent Orchestrator を使う場合は、設定で `transfer_to_*`
 作業です。
 
 - `/research agent <task>` を追加する。
-- `tool_loop_agent()` を使い、`research_search` と `research_get_document` を渡す。
+- `tool_loop_agent()` を使い、Research Note tools だけを渡す。
 - system prompt に「資料検索を先に行う」「根拠がない場合は不明と言う」を入れる。
+- system prompt に、保存と削除は明示依頼がある時だけ実行する安全ルールを入れる。
 - max_steps、tool_call_timeout を設定化する。
 - agent が呼んだ tool と最終 source をログに残す。
 - `/research agent` は最初は Research Note tool のみに限定する。

@@ -54,6 +54,7 @@ docs/practical_steps/architecture_overview.md
 /research show <doc_id>
 /research search <query>
 /research ask <question>
+/research agent <task>
 /research delete <doc_id> --confirm
 /research reindex
 /research clear --confirm
@@ -70,6 +71,8 @@ The plugin currently supports these configuration items:
 - `chunk_overlap`: Character overlap between neighboring chunks.
 - `min_embedding_score`: Minimum embedding similarity score required for retrieval.
 - `max_context_chars`: Maximum total context characters passed to the LLM.
+- `agent_max_steps`: Maximum number of agent tool-calling steps.
+- `agent_tool_call_timeout`: Timeout seconds for each agent tool call.
 - `strict_grounding`: Whether to strongly restrict answers to stored sources.
 - `show_debug_prompt`: Whether to include the generated LLM prompt in `/research ask` output.
 
@@ -77,7 +80,6 @@ The plugin currently supports these configuration items:
 
 The next practical milestones are:
 
-- Add `/research agent` with `tool_loop_agent()`.
 - Add import, web research, MCP, and multi-agent workflows after the core source-grounded flow is stable.
 
 ## English Description
