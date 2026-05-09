@@ -14,6 +14,7 @@
 - `/research list` で保存済み資料を確認できる。
 - `/research ask` で関連資料を検索し、LLM に渡して回答できる。
 - `/research import text/url/confirm` で preview 後に資料を取り込める。
+- `/research agent_web` で許可済み Web Search tool を使う mode を用意できている。
 - JSON 保存ができる。
 - embedding provider を使って embedding 検索できる。
 - 全 chunk に embedding を付ける方針で、キーワード検索 fallback は使わない。
@@ -25,8 +26,8 @@
 - 資料のタイトル、出典 URL、著者、タグ、プロジェクト名などの metadata がない。
 - 引用が note ID 単位で、本文のどこに基づくかが弱い。
 - PDF、Markdown、Web検索結果などを資料化する入口がまだ弱い。
-- LLM が資料検索を自律的に使う tool になっていない。
-- MCP や AstrBot 組み込み Web Search とまだ連携していない。
+- Web検索結果を保存候補として管理する仕組みはまだ弱い。
+- MCP とはまだ連携していない。
 - 複数の専門 agent に仕事を分ける構造がまだない。
 
 ## 目標

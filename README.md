@@ -18,6 +18,7 @@ See `docs/practical_steps/architecture_overview.md` for a short explanation of t
 - List stored materials with `/research list`.
 - Inspect a stored document with `/research show <doc_id>`.
 - Ask source-grounded questions with `/research ask <question>`.
+- Run explicit web-assisted research with `/research agent_web <task>` when enabled.
 - Use embedding search through an AstrBot embedding provider.
 - Register LLM tools: `research_search`, `research_get_document`, `research_list_documents`, `research_add_text`, and `research_delete_document`.
 - Configure search and safety options through `_conf_schema.json`.
@@ -56,6 +57,7 @@ docs/practical_steps/architecture_overview.md
 /research search <query>
 /research ask <question>
 /research agent <task>
+/research agent_web <task>
 /research import text <text>
 /research import url <url>
 /research import confirm <pending_id>
@@ -79,6 +81,8 @@ The plugin currently supports these configuration items:
 - `max_context_chars`: Maximum total context characters passed to the LLM.
 - `agent_max_steps`: Maximum number of agent tool-calling steps.
 - `agent_tool_call_timeout`: Timeout seconds for each agent tool call.
+- `enable_web_research`: Whether `/research agent_web` can use allowed Web Search tools.
+- `allowed_web_tools`: Web Search tool names passed to `/research agent_web`; defaults to Tavily tools.
 - `max_import_chars`: Maximum text characters kept from an import preview.
 - `import_preview_chars`: Maximum characters shown in an import preview.
 - `import_url_timeout`: Timeout seconds for URL import fetching.

@@ -62,6 +62,19 @@
     "minimum": 5,
     "maximum": 300
   },
+  "enable_web_research": {
+    "description": "research agent_web で Web Search tool を使う",
+    "type": "bool",
+    "default": false
+  },
+  "allowed_web_tools": {
+    "description": "research agent_web に渡す Web Search tool 名",
+    "type": "list",
+    "default": ["web_search_tavily", "tavily_extract_web_page"],
+    "items": {
+      "type": "string"
+    }
+  },
   "max_import_chars": {
     "description": "import で取り込む本文の最大文字数",
     "type": "int",

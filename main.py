@@ -6,7 +6,10 @@ from astrbot.api import AstrBotConfig, FunctionTool, ToolSet, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
-from .agent_prompts import build_research_agent_system_prompt
+from .agent_prompts import (
+    build_research_agent_system_prompt,
+    build_web_research_agent_system_prompt,
+)
 from .chunking import split_text_into_chunks
 from .importers.url_importer import fetch_url_text
 from .pending_imports import PendingImportStore
@@ -73,6 +76,7 @@ class ResearchNotePlugin(Star):
             "research show",
             "research delete",
             "research search",
+            "research agent_web",
             "research agent",
             "research import_text",
             "research import_url",
@@ -529,6 +533,44 @@ class ResearchNotePlugin(Star):
                 tools.append(tool)
         return ToolSet(tools)
 
+    def _get_web_research_tool_set(self) -> ToolSet:
+        tools = list(self._get_research_tool_set().tools)
+        tool_manager = self.context.get_llm_tool_manager()
+        safe_web_tool_names = {
+            "web_search_baidu",
+            "web_search_tavily",
+            "tavily_extract_web_page",
+            "web_search_bocha",
+            "web_search_brave",
+            "web_search_firecrawl",
+            "firecrawl_extract_web_page",
+        }
+        raw_allowed_names = self.config.get(
+            "allowed_web_tools",
+            ["web_search_tavily", "tavily_extract_web_page"],
+        )
+        if isinstance(raw_allowed_names, str):
+            allowed_names = [
+                name.strip() for name in raw_allowed_names.split(",") if name.strip()
+            ]
+        else:
+            allowed_names = [
+                str(name).strip()
+                for name in raw_allowed_names
+                if str(name).strip()
+            ]
+
+        for name in allowed_names:
+            if name not in safe_web_tool_names:
+                logger.warning(f"Ignored non-web tool in allowed_web_tools: {name}")
+                continue
+            tool = tool_manager.get_func(name)
+            if not tool:
+                logger.warning(f"Configured web tool not found: {name}")
+                continue
+            tools.append(tool)
+        return ToolSet(tools)
+
     async def initialize(self):
         """Optional async initialization hook."""
 
@@ -547,6 +589,7 @@ class ResearchNotePlugin(Star):
     /research search <query> - embedding 検索結果を表示
     /research ask <question> - 資料に基づいて質問
     /research agent <task> - Research Note tools を使って調査
+    /research agent_web <task> - 保存済み資料と Web Search で調査
     /research import text <text> - preview 後に資料として取り込み
     /research import url <url> - URL を preview 後に資料として取り込み
     /research import confirm <id> - preview 済み import を保存
@@ -794,6 +837,61 @@ class ResearchNotePlugin(Star):
             llm_resp.completion_text
             if llm_resp
             else "Research agent は回答を生成できませんでした。"
+        )
+        yield event.plain_result(answer)
+
+    @research_group.command("agent_web")
+    async def research_agent_web(self, event: AstrMessageEvent, task: str = ""):
+        """Research Note tools と許可済み Web Search tools を使う agent を実行します。"""
+        # Web mode は外部 API を呼ぶため、通常 agent とは明示的に分ける。
+        if not self.config.get("enable_web_research", False):
+            yield event.plain_result("Web research は設定で無効です。")
+            return
+
+        task = self._extract_research_tail(event)
+        if not task:
+            yield event.plain_result("agent_web に依頼する内容を入力してください。")
+            return
+
+        try:
+            provider_id = await self.context.get_current_chat_provider_id(
+                umo=event.unified_msg_origin
+            )
+        except Exception:
+            logger.error("Failed to get current chat provider.", exc_info=True)
+            yield event.plain_result("利用可能な LLM provider が見つかりません。")
+            return
+
+        tools = self._get_web_research_tool_set()
+        if tools.empty():
+            yield event.plain_result("Research Web agent で利用できる tool がありません。")
+            return
+
+        try:
+            llm_resp = await self.context.tool_loop_agent(
+                event=event,
+                chat_provider_id=provider_id,
+                prompt=task,
+                system_prompt=build_web_research_agent_system_prompt(
+                    strict_grounding=self.config.get("strict_grounding", True)
+                ),
+                tools=tools,
+                max_steps=int(self.config.get("agent_max_steps", 8)),
+                tool_call_timeout=int(
+                    self.config.get("agent_tool_call_timeout", 60)
+                ),
+            )
+        except Exception:
+            logger.error("Research Web agent failed.", exc_info=True)
+            yield event.plain_result(
+                "Research Web agent の実行に失敗しました。ログを確認してください。"
+            )
+            return
+
+        answer = (
+            llm_resp.completion_text
+            if llm_resp
+            else "Research Web agent は回答を生成できませんでした。"
         )
         yield event.plain_result(answer)
 
