@@ -1,36 +1,77 @@
 # Research Note for AstrBot
 
-Research Note is a source-grounded research assistant plugin for [AstrBot](https://github.com/AstrBotDevs/AstrBot). It lets you save research materials or source excerpts, retrieve relevant chunks, and ask questions that are answered with explicit source references.
+![AstrBot Plugin](https://img.shields.io/badge/AstrBot-Plugin-0969da)
+![Source Grounded](https://img.shields.io/badge/Source--Grounded-RAG-1a7f37)
+![Embedding Search](https://img.shields.io/badge/Search-Embedding--Only-8250df)
+![Storage](https://img.shields.io/badge/Storage-JSON%20%2F%20SQLite-bf8700)
 
-This plugin is being developed toward a lightweight source-grounded research workflow inside AstrBot: collect materials in chat, split them into searchable chunks, ask grounded questions, and gradually extend the system with stronger citations, tools, MCP, web research, and multi-agent workflows.
+> **A source-grounded research assistant plugin for AstrBot.**
+>
+> Save research materials, retrieve relevant chunks, and ask questions while keeping answers tied to explicit source references.
 
-## Why Use This Plugin?
+Research Note is a source-grounded research assistant plugin for [AstrBot](https://github.com/AstrBotDevs/AstrBot). It helps turn chat-based research into a reusable workflow: collect materials, split them into searchable chunks, retrieve relevant evidence, and generate answers that point back to saved sources.
 
-Research Note turns AstrBot into a small research workspace inside chat. Instead of repeatedly pasting the same notes into an AI conversation, you can save materials once, search them later, and ask questions that are answered from those saved sources.
+Saved materials are represented as **Documents** and **Chunks**. Retrieval is **embedding-only**, so missing embeddings are treated as visible problems instead of silently falling back to keyword search.
 
-It is useful when you want to:
+## Languages
 
-- Keep research notes, article excerpts, project memos, or web page text in one searchable place.
-- Ask an AI questions while keeping the answer tied to the materials you saved.
-- Check which document and chunk supported an answer.
-- Separate stored evidence from web search or tool results.
-- Build toward deeper workflows such as web-assisted research, MCP tool use, and multi-agent review.
+| Language | README | Architecture Guide |
+| --- | --- | --- |
+| English | [README.md](./README.md) | [architecture_overview_en.md](./docs/practical_steps/architecture_overview_en.md) |
+| Japanese | [README_JP.md](./README_JP.md) | [architecture_overview.md](./docs/practical_steps/architecture_overview.md) |
+| Chinese | [README_CN.md](./README_CN.md) | [architecture_overview_zh.md](./docs/practical_steps/architecture_overview_zh.md) |
 
-The main benefit is not just getting an AI answer. The benefit is getting an answer that can point back to the source material, so you can verify it, reuse it, and continue research without losing context.
+## Quick Links
+
+| What You Want To Read | Link |
+| --- | --- |
+| Architecture and feature-level flow diagrams | [Architecture Guide](./docs/practical_steps/architecture_overview_en.md) |
+| Practical development roadmap | [PRACTICAL_ROADMAP.md](./PRACTICAL_ROADMAP.md) |
+| Phase-by-phase practical notes | [docs/practical_steps/README.md](./docs/practical_steps/README.md) |
+
+## Why It Matters
+
+| Research Problem | What Research Note Provides |
+| --- | --- |
+| Research notes disappear inside chat history | Save materials as Documents and Chunks for later retrieval. |
+| AI answers are hard to verify | Keep answers linked to doc_id, chunk_id, title, and source_uri. |
+| Keyword search misses related passages | Use embedding-based semantic search over saved chunks. |
+| Web/tool results get mixed with stored evidence | Separate stored evidence from external evidence. |
+| One-shot answers are not enough for review | Use multi-agent flows for retrieval, reading, drafting, and critique. |
+
+## What This Plugin Solves
+
+Research Note is designed for <span style="color:#8250df"><strong>research material management</strong></span>, <span style="color:#0969da"><strong>semantic retrieval</strong></span>, and <span style="color:#1a7f37"><strong>source-grounded answering</strong></span> inside AstrBot. Notes, article excerpts, web page text, and project references can be saved as reusable research materials instead of being lost in chat history.
+
+Large language models can produce fluent but weakly grounded answers. In research contexts, the risk is not only incorrect output, but also <span style="color:#cf222e"><strong>AI hallucination</strong></span>: plausible statements that are not supported by the materials. Research Note follows the idea of <strong>Retrieval-Augmented Generation (RAG)</strong>: retrieve saved chunks first, place them into the prompt context, and then ask the LLM to answer from that context.
+
+For research work, <strong>evidence traceability</strong>, <strong>citation</strong>, and <strong>source attribution</strong> are as important as answer fluency. Research Note includes doc_id / chunk_id, title, and source_uri in search results and answers, making it easier to check which statement came from which source. This supports <span style="color:#cf222e"><strong>hallucination mitigation</strong></span>, source review, literature comparison, and follow-up verification.
+
+Key benefits:
+
+- <strong>Document / Chunk Management</strong>: Store long materials as documents and retrieval-friendly chunks.
+- <strong>Semantic Search</strong>: Use embedding-based semantic search instead of relying on keyword matching.
+- <strong>Grounded Answering</strong>: Build a context pack from saved chunks before asking the LLM to answer.
+- <strong>Citation Support</strong>: Keep doc_id / chunk_id in outputs for easier source attribution.
+- <strong>Retrieval Check</strong>: Use `/research search` to inspect retrieval results before asking the LLM.
+- <strong>Import Control</strong>: Preview and confirm text or URL imports before saving them.
+- <strong>Evidence Separation</strong>: Keep external evidence from Web/MCP/AstrBot tools separate from stored evidence.
+- <strong>Multi-Agent Review</strong>: Use Retriever, Reader, Writer, and Critic roles for staged research workflows.
+- <strong>Storage Backend</strong>: Choose JSON or SQLite storage with the same command interface.
+
+<span style="color:#0969da"><strong>The value of this plugin is not merely that it generates answers. Its value is that it structures the research process around retrievable sources, citations, and verification.</strong></span> It helps use conversational AI as a continuous source-grounded research workflow rather than a one-off Q&A interface.
 
 ## Architecture
 
 ![Research Note Architecture](./docs/practical_steps/research_note_architecture.svg)
 
-[Open the architecture guide and flow diagrams](./docs/practical_steps/architecture_overview.md)
-
-See `docs/practical_steps/architecture_overview.md` for the diagram guide and feature-level flow diagrams.
+[Open the architecture guide and flow diagrams](./docs/practical_steps/architecture_overview_en.md)
 
 ## Features
 
 - Save research materials with `/research add <text>`.
 - Import text or HTML pages with preview and confirmation.
-- Store materials as documents and searchable chunks.
+- Store materials as Documents and searchable Chunks.
 - List stored materials with `/research list`.
 - Inspect a stored document with `/research show <doc_id>`.
 - Ask source-grounded questions with `/research ask <question>`.
@@ -42,29 +83,15 @@ See `docs/practical_steps/architecture_overview.md` for the diagram guide and fe
 - Create a local storage backup with `/research backup`.
 - Register LLM tools: `research_search`, `research_get_document`, `research_list_documents`, `research_add_text`, and `research_delete_document`.
 - Configure search and safety options through `_conf_schema.json`.
-- Follow the practical roadmap toward citation quality, tool use, MCP, and multi-agent research workflows.
 
 ## Current Status
 
-Research Note is currently an early `v0.1.0` plugin. The minimal document/chunk RAG flow works, but the plugin is still evolving toward a more practical research assistant.
+Research Note is currently an early `v0.1.0` plugin. The minimal Document / Chunk RAG flow works, and the plugin is evolving toward a more practical research assistant.
 
 Implemented core flow:
 
 ```text
 Add material -> Split into chunks -> Store in JSON or SQLite -> Search relevant chunks -> Build prompt -> Ask LLM -> Return answer with source IDs
-```
-
-Planned practical improvements are documented in:
-
-```text
-PRACTICAL_ROADMAP.md
-docs/practical_steps/README.md
-```
-
-An architecture overview is available here:
-
-```text
-docs/practical_steps/architecture_overview.md
 ```
 
 ## Commands
@@ -107,10 +134,10 @@ The plugin currently supports these configuration items:
 - `agent_max_steps`: Maximum number of agent tool-calling steps.
 - `agent_tool_call_timeout`: Timeout seconds for each agent tool call.
 - `enable_web_research`: Whether `/research agent_web` can use allowed Web Search tools.
-- `allowed_web_tools`: Web Search tool names passed to `/research agent_web`; defaults to Tavily tools.
+- `allowed_web_tools`: Web Search tool names passed to `/research agent_web`.
 - `enable_mcp_research`: Whether `/research agent_mcp` can use allowed MCP and AstrBot builtin tools.
 - `allowed_mcp_tools`: MCP tool names passed to `/research agent_mcp`.
-- `allowed_builtin_tools`: AstrBot builtin tool names passed to `/research agent_mcp`; defaults to file read, grep, knowledge base search, and Tavily tools.
+- `allowed_builtin_tools`: AstrBot builtin tool names passed to `/research agent_mcp`.
 - `allow_all_builtin_tools`: Whether `/research agent_mcp` receives every AstrBot builtin tool.
 - `denied_builtin_tools`: Builtin tool names excluded even when all builtin tools are enabled.
 - `enable_multi_agent`: Whether `/research agent_multi` runs the staged Retriever/Reader/Writer/Critic flow.
@@ -124,20 +151,6 @@ The plugin currently supports these configuration items:
 - `import_url_timeout`: Timeout seconds for URL import fetching.
 - `strict_grounding`: Whether to strongly restrict answers to stored sources.
 - `show_debug_prompt`: Whether to include the generated LLM prompt in `/research ask` output.
-
-## Development Roadmap
-
-The next practical milestones are:
-
-- Add import, web research, MCP, and multi-agent workflows after the core source-grounded flow is stable.
-
-## English Description
-
-Research Note is a source-grounded research assistant plugin for AstrBot. It helps users collect research materials, retrieve relevant notes, and ask questions answered with explicit source references. The long-term goal is to provide a practical research workflow inside AstrBot by combining local research storage, citation-aware RAG, AstrBot tools, MCP integrations, web research, and multi-agent assistance.
-
-## Japanese Description
-
-Research Note は、AstrBot 上で動く根拠付き研究補助プラグインです。研究メモや資料抜粋を保存し、関連する内容を検索し、根拠資料を示しながら質問に回答することを目指します。長期的には、ローカルの研究資料管理、引用付き RAG、AstrBot の Tool、MCP 連携、Web 調査、Multi-Agent を組み合わせ、実用的な研究支援ワークフローを AstrBot 内で実現することを目標にしています。
 
 ## Documentation
 
