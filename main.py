@@ -5,8 +5,10 @@ from pathlib import Path
 from astrbot.api import AstrBotConfig, FunctionTool, ToolSet, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
+from astrbot.core.tools.registry import get_builtin_tool_name, iter_builtin_tool_classes
 
 from .agent_prompts import (
+    build_mcp_research_agent_system_prompt,
     build_research_agent_system_prompt,
     build_web_research_agent_system_prompt,
 )
@@ -89,6 +91,7 @@ class ResearchNotePlugin(Star):
             "research show",
             "research delete",
             "research search",
+            "research agent_mcp",
             "research agent_web",
             "research agent",
             "research import_text",
@@ -584,6 +587,99 @@ class ResearchNotePlugin(Star):
             tools.append(tool)
         return ToolSet(tools)
 
+    def _config_list(self, name: str, default: list[str] | None = None) -> list[str]:
+        raw_value = self.config.get(name, default or [])
+        if raw_value is None:
+            return []
+        if isinstance(raw_value, str):
+            return [item.strip() for item in raw_value.split(",") if item.strip()]
+        if not isinstance(raw_value, list | tuple):
+            return [str(raw_value).strip()] if str(raw_value).strip() else []
+        return [str(item).strip() for item in raw_value if str(item).strip()]
+
+    def _get_mcp_research_tool_set(self) -> ToolSet:
+        tool_set = ToolSet(list(self._get_research_tool_set().tools))
+        tool_manager = self.context.get_llm_tool_manager()
+
+        builtin_tool_names = {
+            "astrbot_file_read_tool",
+            "astrbot_grep_tool",
+            "astrbot_download_file",
+            "astrbot_upload_file",
+            "astrbot_file_write_tool",
+            "astrbot_file_edit_tool",
+            "astrbot_execute_python",
+            "astrbot_execute_ipython",
+            "astrbot_execute_shell",
+            "astr_kb_search",
+            "web_search_tavily",
+            "tavily_extract_web_page",
+            "web_search_baidu",
+            "web_search_bocha",
+            "web_search_brave",
+            "web_search_firecrawl",
+            "firecrawl_extract_web_page",
+        }
+        if self.config.get("allow_all_builtin_tools", False):
+            builtin_tool_names.update(
+                name
+                for tool_cls in iter_builtin_tool_classes()
+                if (name := get_builtin_tool_name(tool_cls))
+            )
+
+        denied_builtin_tools = set(self._config_list("denied_builtin_tools"))
+        dangerous_builtin_tools = {
+            "astrbot_download_file",
+            "astrbot_upload_file",
+            "astrbot_file_write_tool",
+            "astrbot_file_edit_tool",
+            "astrbot_execute_python",
+            "astrbot_execute_ipython",
+            "astrbot_execute_shell",
+        }
+
+        if self.config.get("allow_all_builtin_tools", False):
+            allowed_builtin_names = sorted(builtin_tool_names)
+        else:
+            allowed_builtin_names = self._config_list(
+                "allowed_builtin_tools",
+                [
+                "astrbot_file_read_tool",
+                "astrbot_grep_tool",
+                "astr_kb_search",
+                "web_search_tavily",
+                    "tavily_extract_web_page",
+                ],
+            )
+
+        for name in allowed_builtin_names:
+            if name in denied_builtin_tools:
+                logger.warning(f"Denied builtin tool for agent_mcp: {name}")
+                continue
+            if name not in builtin_tool_names:
+                logger.warning(f"Ignored unsupported builtin tool: {name}")
+                continue
+            if name in dangerous_builtin_tools:
+                logger.warning(f"Allowed high-risk builtin tool for agent_mcp: {name}")
+            tool = tool_manager.get_func(name)
+            if not tool:
+                logger.warning(f"Configured builtin tool not found: {name}")
+                continue
+            tool_set.add_tool(tool)
+
+        mcp_tools_by_name = {
+            tool.name: tool
+            for tool in tool_manager.func_list
+            if not str(tool.name).startswith("research_")
+        }
+        for name in self._config_list("allowed_mcp_tools"):
+            tool = mcp_tools_by_name.get(name)
+            if not tool:
+                logger.warning(f"Configured MCP tool not found: {name}")
+                continue
+            tool_set.add_tool(tool)
+        return tool_set
+
     async def initialize(self):
         """Optional async initialization hook."""
 
@@ -605,6 +701,7 @@ class ResearchNotePlugin(Star):
     /research ask <question> - 資料に基づいて質問
     /research agent <task> - Research Note tools を使って調査
     /research agent_web <task> - 保存済み資料と Web Search で調査
+    /research agent_mcp <task> - 保存済み資料と許可済み MCP / AstrBot tools で調査
     /research import text <text> - preview 後に資料として取り込み
     /research import url <url> - URL を preview 後に資料として取り込み
     /research import confirm <id> - preview 済み import を保存
@@ -954,6 +1051,61 @@ class ResearchNotePlugin(Star):
             llm_resp.completion_text
             if llm_resp
             else "Research Web agent は回答を生成できませんでした。"
+        )
+        yield event.plain_result(answer)
+
+    @research_group.command("agent_mcp")
+    async def research_agent_mcp(self, event: AstrMessageEvent, task: str = ""):
+        """Research Note tools と許可済み MCP / AstrBot tools を使う agent を実行します。"""
+        # MCP mode は外部プロセスやファイルに触れる可能性があるため、明示的に分ける。
+        if not self.config.get("enable_mcp_research", False):
+            yield event.plain_result("MCP research は設定で無効です。")
+            return
+
+        task = self._extract_research_tail(event)
+        if not task:
+            yield event.plain_result("agent_mcp に依頼する内容を入力してください。")
+            return
+
+        try:
+            provider_id = await self.context.get_current_chat_provider_id(
+                umo=event.unified_msg_origin
+            )
+        except Exception:
+            logger.error("Failed to get current chat provider.", exc_info=True)
+            yield event.plain_result("利用可能な LLM provider が見つかりません。")
+            return
+
+        tools = self._get_mcp_research_tool_set()
+        if tools.empty():
+            yield event.plain_result("Research MCP agent で利用できる tool がありません。")
+            return
+
+        try:
+            llm_resp = await self.context.tool_loop_agent(
+                event=event,
+                chat_provider_id=provider_id,
+                prompt=task,
+                system_prompt=build_mcp_research_agent_system_prompt(
+                    strict_grounding=self.config.get("strict_grounding", True)
+                ),
+                tools=tools,
+                max_steps=int(self.config.get("agent_max_steps", 8)),
+                tool_call_timeout=int(
+                    self.config.get("agent_tool_call_timeout", 60)
+                ),
+            )
+        except Exception:
+            logger.error("Research MCP agent failed.", exc_info=True)
+            yield event.plain_result(
+                "Research MCP agent の実行に失敗しました。ログを確認してください。"
+            )
+            return
+
+        answer = (
+            llm_resp.completion_text
+            if llm_resp
+            else "Research MCP agent は回答を生成できませんでした。"
         )
         yield event.plain_result(answer)
 

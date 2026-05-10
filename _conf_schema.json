@@ -75,6 +75,46 @@
       "type": "string"
     }
   },
+  "enable_mcp_research": {
+    "description": "research agent_mcp で MCP / AstrBot builtin tool を使う",
+    "type": "bool",
+    "default": false
+  },
+  "allowed_mcp_tools": {
+    "description": "research agent_mcp に渡す MCP tool 名",
+    "type": "list",
+    "default": [],
+    "items": {
+      "type": "string"
+    }
+  },
+  "allowed_builtin_tools": {
+    "description": "research agent_mcp に渡す AstrBot builtin tool 名",
+    "type": "list",
+    "default": [
+      "astrbot_file_read_tool",
+      "astrbot_grep_tool",
+      "astr_kb_search",
+      "web_search_tavily",
+      "tavily_extract_web_page"
+    ],
+    "items": {
+      "type": "string"
+    }
+  },
+  "allow_all_builtin_tools": {
+    "description": "research agent_mcp にすべての AstrBot builtin tool を渡す",
+    "type": "bool",
+    "default": false
+  },
+  "denied_builtin_tools": {
+    "description": "allow_all_builtin_tools 有効時にも research agent_mcp へ渡さない AstrBot builtin tool 名",
+    "type": "list",
+    "default": [],
+    "items": {
+      "type": "string"
+    }
+  },
   "max_import_chars": {
     "description": "import で取り込む本文の最大文字数",
     "type": "int",
