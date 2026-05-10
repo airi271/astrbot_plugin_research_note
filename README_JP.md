@@ -1,30 +1,57 @@
 # Research Note for AstrBot 日本語版
 
-Research Note は、[AstrBot](https://github.com/AstrBotDevs/AstrBot) 上で動く、根拠を確認しながら調査を進めるための研究補助プラグインです。研究メモや資料の抜粋を保存し、関連する箇所を検索し、保存済み資料に基づいて質問に回答できるようにすることを目指しています。
+![AstrBot Plugin](https://img.shields.io/badge/AstrBot-Plugin-0969da)
+![Source Grounded](https://img.shields.io/badge/Source--Grounded-RAG-1a7f37)
+![Embedding Search](https://img.shields.io/badge/Search-Embedding--Only-8250df)
+![Storage](https://img.shields.io/badge/Storage-JSON%20%2F%20SQLite-bf8700)
 
-このプラグインは、チャットの中で資料を集め、必要な箇所を探し、根拠を確認しながら AI に質問するための軽量な研究支援ワークフローとして開発しています。保存した資料は Document と Chunk に分けて扱います。
+> **保存した資料に基づいて検索し、根拠を確認しながら AI に質問するための Research Note plugin です。**
+>
+> 単発のチャット回答ではなく、資料、検索結果、引用、外部調査をつなげて扱うことを目指しています。
+
+Research Note は、[AstrBot](https://github.com/AstrBotDevs/AstrBot) 上で動く、<span style="color:#0969da"><strong>根拠を確認しながら調査を進める</strong></span>ための研究補助プラグインです。研究メモや資料の抜粋を保存し、関連する箇所を検索し、保存済み資料に基づいて質問に回答できるようにすることを目指しています。
+
+このプラグインは、チャットの中で資料を集め、必要な箇所を探し、根拠を確認しながら AI に質問するための軽量な研究支援ワークフローとして開発しています。保存した資料は <strong>Document</strong> と <strong>Chunk</strong> に分けて扱います。
+
+## Quick Links
+
+| 読みたい内容 | リンク |
+| --- | --- |
+| 全体構造と機能別 flow 図 | [アーキテクチャ解説](./docs/practical_steps/architecture_overview.md) |
+| 実用化ロードマップ | [PRACTICAL_ROADMAP.md](./PRACTICAL_ROADMAP.md) |
+| Phase別の実装メモ | [docs/practical_steps/README.md](./docs/practical_steps/README.md) |
+
+## 何が嬉しいのか
+
+| 課題 | Research Note でできること |
+| --- | --- |
+| チャットに貼った資料が流れていく | 資料を Document / Chunk として保存し、後から検索できます。 |
+| AI の回答根拠が見えにくい | doc_id / chunk_id、title、source_uri を使って根拠を追いやすくします。 |
+| キーワード検索だけでは関連箇所を拾いにくい | embedding-based semantic search で意味的に近い chunk を探します。 |
+| Web Search と保存済み資料が混ざりやすい | external evidence と stored evidence を区別して扱います。 |
+| 1回の回答だけでは検証が足りない | Multi-Agent flow で読解、執筆、critique を段階的に行えます。 |
 
 ## このプラグインが解決したいこと
 
-Research Note は、AstrBot の会話インターフェース上で、研究資料の整理、意味検索、根拠付き回答をまとめて扱うためのプラグインです。チャットに貼った研究メモ、論文・記事の抜粋、Webページ本文、プロジェクト資料は、そのままだと会話の流れの中に埋もれがちです。このプラグインでは、それらを後から検索・参照できる形で保存し、質問応答、比較検討、レビューに使えるようにします。
+Research Note は、AstrBot の会話インターフェース上で、<span style="color:#8250df"><strong>研究資料の整理</strong></span>、<span style="color:#0969da"><strong>意味検索</strong></span>、<span style="color:#1a7f37"><strong>根拠付き回答</strong></span>をまとめて扱うためのプラグインです。チャットに貼った研究メモ、論文・記事の抜粋、Webページ本文、プロジェクト資料は、そのままだと会話の流れの中に埋もれがちです。このプラグインでは、それらを後から検索・参照できる形で保存し、質問応答、比較検討、レビューに使えるようにします。
 
-大規模言語モデルは、単独で使うと回答の根拠が見えにくくなります。特に研究や調査では、AI hallucination、つまり資料に基づかないもっともらしい生成を見過ごすことが問題になります。Research Note は、Retrieval-Augmented Generation、いわゆる RAG の考え方に基づき、回答前に保存済み資料を検索し、関連 chunk を prompt context として LLM に渡します。これにより、回答を保存済み資料に grounding し、生成内容と根拠資料の対応関係を追跡しやすくします。
+大規模言語モデルは、単独で使うと回答の根拠が見えにくくなります。特に研究や調査では、<span style="color:#cf222e"><strong>AI hallucination</strong></span>、つまり資料に基づかないもっともらしい生成を見過ごすことが問題になります。Research Note は、<strong>Retrieval-Augmented Generation、いわゆる RAG</strong> の考え方に基づき、回答前に保存済み資料を検索し、関連 chunk を prompt context として LLM に渡します。これにより、回答を保存済み資料に <strong>grounding</strong> し、生成内容と根拠資料の対応関係を追跡しやすくします。
 
-研究・調査作業では、回答が自然であること以上に、evidence traceability、citation、source attribution が重要です。Research Note は doc_id / chunk_id、title、source_uri を回答や検索結果に含めることで、「どの記述が、どの資料の、どの部分に基づいているのか」を後から確認しやすくします。これは hallucination mitigation、根拠確認、再検証、文献比較、レビュー作業に役立ちます。
+研究・調査作業では、回答が自然であること以上に、<strong>evidence traceability</strong>、<strong>citation</strong>、<strong>source attribution</strong> が重要です。Research Note は doc_id / chunk_id、title、source_uri を回答や検索結果に含めることで、「どの記述が、どの資料の、どの部分に基づいているのか」を後から確認しやすくします。これは <span style="color:#cf222e"><strong>hallucination mitigation</strong></span>、根拠確認、再検証、文献比較、レビュー作業に役立ちます。
 
 主な利点です。
 
-- 資料を Document と Chunk に分けて保存し、長文資料を retrieval しやすい単位で扱えます。
-- embedding-based semantic search により、単純なキーワード一致では拾いにくい関連箇所を検索できます。
-- `/research ask` では、保存済み資料から関連 chunk を選び、grounded answer generation のための context pack を作ります。
-- 回答や検索結果に doc_id / chunk_id を含めることで、citation と source attribution を確認しやすくします。
-- `/research search` により、LLM に回答させる前に retrieval result を確認でき、検索結果が妥当かを手元で確認できます。
-- import preview / confirm により、外部テキストやURLをすぐに保存せず、内容を確認してから資料として取り込めます。
-- Web Search、MCP、AstrBot builtin tools の結果を、保存済み資料と区別して扱い、external evidence と stored evidence の混同を抑えます。
-- Multi-Agent flow では、Retriever、Reader、Writer、Critic の役割を分け、情報収集、読解、執筆、critique を段階的に進められます。
-- JSON / SQLite backend を選択でき、資料数が増えた場合の運用も見据えた保存方法を選べます。
+- <strong>Document / Chunk 管理</strong>: 資料を Document と Chunk に分けて保存し、長文資料を retrieval しやすい単位で扱えます。
+- <strong>Semantic Search</strong>: embedding-based semantic search により、単純なキーワード一致では拾いにくい関連箇所を検索できます。
+- <strong>Grounded Answer</strong>: `/research ask` では、保存済み資料から関連 chunk を選び、grounded answer generation のための context pack を作ります。
+- <strong>Citation Support</strong>: 回答や検索結果に doc_id / chunk_id を含めることで、citation と source attribution を確認しやすくします。
+- <strong>Retrieval Check</strong>: `/research search` により、LLM に回答させる前に retrieval result を確認でき、検索結果が妥当かを手元で確認できます。
+- <strong>Import Control</strong>: import preview / confirm により、外部テキストやURLをすぐに保存せず、内容を確認してから資料として取り込めます。
+- <strong>Evidence Separation</strong>: Web Search、MCP、AstrBot builtin tools の結果を、保存済み資料と区別して扱い、external evidence と stored evidence の混同を抑えます。
+- <strong>Multi-Agent Review</strong>: Multi-Agent flow では、Retriever、Reader、Writer、Critic の役割を分け、情報収集、読解、執筆、critique を段階的に進められます。
+- <strong>Storage Backend</strong>: JSON / SQLite backend を選択でき、資料数が増えた場合の運用も見据えた保存方法を選べます。
 
-このプラグインの価値は、AI に回答を生成させること自体ではなく、回答の前後にある研究プロセスを扱いやすくする点にあります。資料を保存し、retrieval を行い、根拠を確認し、必要に応じて外部調査や批判的検証へ進むことで、会話型AIを単発の質問応答ではなく、継続的な source-grounded research workflow として利用できます。
+<span style="color:#0969da"><strong>このプラグインの価値は、AI に回答を生成させること自体ではなく、回答の前後にある研究プロセスを扱いやすくする点にあります。</strong></span> 資料を保存し、retrieval を行い、根拠を確認し、必要に応じて外部調査や批判的検証へ進むことで、会話型AIを単発の質問応答ではなく、継続的な <strong>source-grounded research workflow</strong> として利用できます。
 
 ## 主な機能
 
