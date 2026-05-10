@@ -38,7 +38,19 @@
 
 この plugin は keyword fallback を使いません。つまり、単語の一致だけで無理に探すのではなく、embedding が作れない場合や保存済み chunk に embedding がない場合は、エラーとして分かるようにします。
 
-`/research ask` の最後では、AI に `Sources` と `Unknowns` を含む prompt を渡します。これにより、根拠があることと分からないことを分けて答えさせます。
+各ノードの意味です。
+
+- `User command`: ユーザーが `/research ask ...` または `/research search ...` を送る入口です。
+- `Extract query`: `/research ask` などの命令部分を除いて、本当に調べたい文章だけを取り出します。
+- `Embedding model`: 質問文を embedding という数字のリストに変換します。
+- `Load chunks`: JSON または SQLite に保存されている Document / Chunk を読みます。
+- `Embedding search`: 質問の embedding と chunk の embedding を比べて、意味が近い資料を探します。
+- `Search output`: `/research search` の場合は、ここで score、title、doc_id、chunk_id を表示して終わります。
+- `Context pack`: `/research ask` の場合は、見つかった資料を短く整えて AI に渡す準備をします。AI に渡す参考資料セットのことです。
+- `LLM prompt`: AI に「この資料に基づいて答えて」「参考文献を付けて」「分からないことは不明点にして」と指示します。
+- `Grounded answer`: AI が根拠付きで回答し、本文中に `[1]` のような番号を付け、最後に参考文献を出します。
+
+`/research ask` の最後では、AI に `参考文献` と `不明点` を含む prompt を渡します。これにより、根拠があることと分からないことを分けて答えさせます。
 
 この流れは一番安定した基本機能です。agent より単純で、動作を予測しやすいです。
 
@@ -135,8 +147,6 @@ SQLite は1つのデータベースファイルです。現在の実装では `d
 JSON と SQLite は内部の保存方法が違いますが、plugin から見ると同じ `load_store`、`save_store`、`create_backup` で扱います。そのため、`/research add` や `/research ask` の使い方は変わりません。
 
 `/research backup` を実行すると、現在使っている backend の backup が `data/backups` に作られます。
-
-`__pycache__` にある `.pyc` ファイルは Python の自動キャッシュです。SQLite のデータではありません。
 
 ## 実装との照合メモ
 

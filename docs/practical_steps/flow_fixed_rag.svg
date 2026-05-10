@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
   <title id="title">Fixed RAG flow</title>
-  <desc id="desc">How /research ask and /research search use embedding-only retrieval and source-grounded prompting.</desc>
+  <desc id="desc">/research ask and /research search use a fixed retrieval and answer flow with embedding-only search.</desc>
   <defs>
     <style>
       .bg { fill: #f7f9fc; }
