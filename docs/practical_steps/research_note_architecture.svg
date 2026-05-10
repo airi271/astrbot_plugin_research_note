@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1040" viewBox="0 0 1500 1040" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1100" viewBox="0 0 1500 1100" role="img" aria-labelledby="title desc">
   <title id="title">Research Note current architecture</title>
   <desc id="desc">Current architecture of the AstrBot Research Note plugin, including commands, import, tools, agent modes, embedding-only search, JSON or SQLite storage, and external research tools.</desc>
   <defs>
@@ -22,6 +22,7 @@
       .label { font: 700 14px sans-serif; fill: #233145; }
       .small { font: 500 12px sans-serif; fill: #536477; }
       .tiny { font: 500 11px sans-serif; fill: #63748a; }
+      .micro { font: 500 10px sans-serif; fill: #63748a; }
       .arrow { stroke: #65758a; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
       .arrow-blue { stroke: #2e7fc0; stroke-width: 2.4; fill: none; marker-end: url(#arrowBlue); }
       .arrow-green { stroke: #2e9854; stroke-width: 2.4; fill: none; marker-end: url(#arrowGreen); }
@@ -39,9 +40,9 @@
     <marker id="arrowRed" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto"><path d="M0 0 L12 4 L0 8 Z" fill="#cf5364" /></marker>
   </defs>
 
-  <rect class="bg" x="0" y="0" width="1500" height="1040" />
+  <rect class="bg" x="0" y="0" width="1500" height="1100" />
   <text class="title" x="56" y="58">Research Note Plugin Architecture</text>
-  <text class="subtitle" x="56" y="84">Current implementation: source-grounded RAG, import, tools, agent modes, embedding-only search, JSON/SQLite storage, and controlled external research.</text>
+  <text class="subtitle" x="56" y="84">Current implementation: source-grounded RAG, import, tools, agents, embedding-only search, and JSON/SQLite storage.</text>
 
   <rect class="panel" x="54" y="120" width="210" height="220" />
   <text class="section" x="82" y="154">User Side</text>
@@ -61,27 +62,27 @@
   <rect class="box-blue" x="348" y="286" width="210" height="46" />
   <text class="label" x="368" y="314">Context API</text>
 
-  <rect class="green" x="658" y="84" width="456" height="354" />
-  <text class="section" x="690" y="120">Research Note Plugin</text>
-  <text class="small" x="690" y="142">data/plugins/astrbot_plugin_research_note</text>
-  <rect class="box-green" x="690" y="166" width="174" height="56" />
-  <text class="label" x="710" y="190">Command Router</text>
-  <text class="small" x="710" y="208">add / ask / search</text>
-  <rect class="box-green" x="908" y="166" width="174" height="56" />
-  <text class="label" x="928" y="190">Import Preview</text>
-  <text class="small" x="928" y="208">text / url / confirm</text>
-  <rect class="box-green" x="690" y="242" width="174" height="56" />
-  <text class="label" x="710" y="266">Chunking</text>
-  <text class="small" x="710" y="284">Document -&gt; Chunks</text>
-  <rect class="box-green" x="908" y="242" width="174" height="56" />
-  <text class="label" x="928" y="266">Embedding Search</text>
-  <text class="small" x="928" y="284">embedding-only</text>
-  <rect class="box-green" x="690" y="318" width="174" height="56" />
-  <text class="label" x="710" y="342">Prompt Builder</text>
-  <text class="small" x="710" y="360">Sources / Unknowns</text>
-  <rect class="box-green" x="908" y="318" width="174" height="56" />
-  <text class="label" x="928" y="342">Registered Tools</text>
-  <text class="small" x="928" y="360">research_* tools</text>
+  <rect class="green" x="658" y="116" width="456" height="322" />
+  <text class="section" x="690" y="152">Research Note Plugin</text>
+  <text class="small" x="690" y="174">data/plugins/astrbot_plugin_research_note</text>
+  <rect class="box-green" x="690" y="198" width="174" height="56" />
+  <text class="label" x="710" y="222">Command Router</text>
+  <text class="small" x="710" y="240">add / ask / search</text>
+  <rect class="box-green" x="908" y="198" width="174" height="56" />
+  <text class="label" x="928" y="222">Import Preview</text>
+  <text class="small" x="928" y="240">text / url / confirm</text>
+  <rect class="box-green" x="690" y="274" width="174" height="56" />
+  <text class="label" x="710" y="298">Chunking</text>
+  <text class="small" x="710" y="316">Document -&gt; Chunks</text>
+  <rect class="box-green" x="908" y="274" width="174" height="56" />
+  <text class="label" x="928" y="298">Embedding Search</text>
+  <text class="small" x="928" y="316">embedding-only</text>
+  <rect class="box-green" x="690" y="350" width="174" height="56" />
+  <text class="label" x="710" y="374">Prompt Builder</text>
+  <text class="small" x="710" y="392">Sources / Unknowns</text>
+  <rect class="box-green" x="908" y="350" width="174" height="56" />
+  <text class="label" x="928" y="374">Registered Tools</text>
+  <text class="small" x="928" y="392">research_* tools</text>
 
   <rect class="orange" x="1190" y="112" width="250" height="230" />
   <text class="section" x="1220" y="148">LLM Providers</text>
@@ -97,7 +98,8 @@
   <text class="small" x="120" y="574">research_notes.json</text>
   <rect class="box-purple" x="258" y="532" width="138" height="54" />
   <text class="label" x="278" y="556">SQLite backend</text>
-  <text class="small" x="278" y="574">research_notes.sqlite3</text>
+  <text class="micro" x="278" y="572">research_notes</text>
+  <text class="micro" x="278" y="584">.sqlite3</text>
   <rect class="box-purple" x="100" y="606" width="138" height="54" />
   <text class="label" x="120" y="630">Documents</text>
   <text class="small" x="120" y="648">title / source_uri</text>
@@ -139,26 +141,26 @@
   <rect class="box-orange" x="1220" y="706" width="190" height="46" />
   <text class="label" x="1240" y="734">File / Python Tools</text>
 
-  <rect class="panel" x="96" y="854" width="1308" height="112" />
-  <text class="section" x="128" y="888">Main Rules</text>
-  <text class="small" x="128" y="916">1. Stored knowledge is Document + Chunk. Every saved chunk must have an embedding.</text>
-  <text class="small" x="526" y="916">2. Retrieval is embedding-only; there is no keyword fallback.</text>
-  <text class="small" x="894" y="916">3. External results are not saved unless the user confirms import or add_text.</text>
-  <text class="small" x="128" y="940">4. agent_mcp and agent_multi use allowlisted tools; delete requires explicit confirmation.</text>
-  <text class="small" x="700" y="940">5. Answers should include source references and unknowns when evidence is missing.</text>
+  <rect class="panel" x="96" y="838" width="1308" height="176" />
+  <text class="section" x="128" y="874">Main Rules</text>
+  <text class="small" x="128" y="904">1. Stored knowledge is Document + Chunk. Every saved chunk must have an embedding.</text>
+  <text class="small" x="128" y="928">2. Retrieval is embedding-only; there is no keyword fallback.</text>
+  <text class="small" x="128" y="952">3. External results are not saved unless the user confirms import or clearly asks research_add_text to save them.</text>
+  <text class="small" x="128" y="976">4. agent_mcp and agent_multi use allowlisted tools. Delete operations require explicit confirmation.</text>
+  <text class="small" x="128" y="1000">5. Answers should include source references and unknowns when evidence is missing.</text>
 
   <path class="arrow" d="M159 232 L159 252" />
   <path class="arrow-blue" d="M236 279 C276 279 306 249 348 249" />
-  <path class="arrow-blue" d="M558 249 C600 249 630 194 690 194" />
-  <path class="arrow-green" d="M864 194 L908 194" />
-  <path class="arrow-green" d="M777 222 L777 242" />
-  <path class="arrow-green" d="M777 298 L777 318" />
-  <path class="arrow-green" d="M995 222 L995 242" />
-  <path class="arrow-orange" d="M1082 270 C1138 270 1168 272 1220 272" />
-  <path class="arrow-orange" d="M864 346 C1008 376 1140 200 1220 200" />
-  <path class="arrow-purple" d="M908 270 C720 410 542 548 396 559" />
-  <path class="arrow-purple" d="M396 633 C544 620 706 448 995 298" />
-  <path class="arrow-blue" d="M995 374 C928 446 816 572 738 572" />
+  <path class="arrow-blue" d="M558 249 C600 249 630 226 690 226" />
+  <path class="arrow-green" d="M864 226 L908 226" />
+  <path class="arrow-green" d="M777 254 L777 274" />
+  <path class="arrow-green" d="M777 330 L777 350" />
+  <path class="arrow-green" d="M995 254 L995 274" />
+  <path class="arrow-orange" d="M1082 302 C1138 302 1168 272 1220 272" />
+  <path class="arrow-orange" d="M864 378 C1008 408 1140 200 1220 200" />
+  <path class="arrow-purple" d="M908 302 C720 410 542 548 396 559" />
+  <path class="arrow-purple" d="M396 633 C544 620 706 448 995 330" />
+  <path class="arrow-blue" d="M995 406 C928 446 816 572 738 572" />
   <path class="arrow-red" d="M738 631 C778 632 814 632 858 632" />
   <path class="arrow-orange" d="M1092 622 C1134 622 1176 610 1220 610" />
   <path class="arrow-orange" d="M1092 680 C1136 680 1178 670 1220 670" />
@@ -166,5 +168,5 @@
   <path class="arrow-green dash" d="M858 738 C760 820 610 800 627 714" />
   <path class="arrow-red dash" d="M1220 550 C1138 500 1084 474 995 374" />
 
-  <text class="tiny" x="56" y="1010">Solid arrows show command, storage, LLM, and tool flow. Dashed arrows show agent feedback loops and controlled external research paths.</text>
+  <text class="tiny" x="56" y="1068">Solid arrows show command, storage, LLM, and tool flow. Dashed arrows show agent feedback loops and controlled external research paths.</text>
 </svg>

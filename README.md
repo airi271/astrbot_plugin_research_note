@@ -8,6 +8,8 @@ This plugin is being developed toward a lightweight source-grounded research wor
 
 ![Research Note Architecture](./docs/practical_steps/research_note_architecture.svg)
 
+[Open the architecture guide and flow diagrams](./docs/practical_steps/architecture_overview.md)
+
 See `docs/practical_steps/architecture_overview.md` for the diagram guide and feature-level flow diagrams.
 
 ## Features
