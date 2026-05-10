@@ -59,5 +59,4 @@
   <path class="arrow" d="M875 454 C820 492 734 500 635 528" />
   <path class="arrow dash" d="M770 573 L890 573" />
 
-  <text class="small" x="70" y="674">Important: __pycache__ files are Python bytecode caches. SQLite data is stored in data/research_notes.sqlite3, not in importers/__pycache__.</text>
 </svg>
