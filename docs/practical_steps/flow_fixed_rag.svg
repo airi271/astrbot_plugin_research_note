@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Fixed RAG flow</title>
+  <desc id="desc">How /research ask and /research search use embedding-only retrieval and source-grounded prompting.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .box { fill: #ffffff; stroke: #c9d4e2; stroke-width: 2; rx: 16; }
+      .blue { fill: #edf6ff; stroke: #4b9ad9; stroke-width: 2; rx: 16; }
+      .green { fill: #effaf3; stroke: #3fa35f; stroke-width: 2; rx: 16; }
+      .orange { fill: #fff6ea; stroke: #ce7a25; stroke-width: 2; rx: 16; }
+      .purple { fill: #f5f1ff; stroke: #7d65cf; stroke-width: 2; rx: 16; }
+      .title { font: 700 28px sans-serif; fill: #172233; }
+      .label { font: 700 15px sans-serif; fill: #223047; }
+      .small { font: 500 12px sans-serif; fill: #536477; }
+      .arrow { stroke: #607086; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 7 6; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto"><path d="M0 0 L12 4 L0 8 Z" fill="#607086" /></marker>
+  </defs>
+  <rect class="bg" width="1280" height="720" />
+  <text class="title" x="54" y="58">Fixed RAG: /research ask and /research search</text>
+
+  <rect class="blue" x="64" y="120" width="190" height="86" />
+  <text class="label" x="86" y="152">User command</text>
+  <text class="small" x="86" y="174">/research ask question</text>
+  <text class="small" x="86" y="192">/research search query</text>
+
+  <rect class="box" x="306" y="120" width="190" height="86" />
+  <text class="label" x="328" y="152">Extract query</text>
+  <text class="small" x="328" y="174">_extract_research_tail</text>
+  <text class="small" x="328" y="192">validate non-empty input</text>
+
+  <rect class="orange" x="548" y="120" width="190" height="86" />
+  <text class="label" x="570" y="152">Embedding model</text>
+  <text class="small" x="570" y="174">create query vector</text>
+  <text class="small" x="570" y="192">fail if provider missing</text>
+
+  <rect class="purple" x="790" y="120" width="190" height="86" />
+  <text class="label" x="812" y="152">Load chunks</text>
+  <text class="small" x="812" y="174">JSON or SQLite store</text>
+  <text class="small" x="812" y="192">chunks must have vectors</text>
+
+  <rect class="green" x="1032" y="120" width="190" height="86" />
+  <text class="label" x="1054" y="152">Embedding search</text>
+  <text class="small" x="1054" y="174">cosine similarity</text>
+  <text class="small" x="1054" y="192">top_k + min score</text>
+
+  <rect class="green" x="306" y="316" width="210" height="96" />
+  <text class="label" x="328" y="350">Search output</text>
+  <text class="small" x="328" y="372">/research search returns</text>
+  <text class="small" x="328" y="390">score, title, doc_id, chunk_id</text>
+
+  <rect class="box" x="568" y="316" width="210" height="96" />
+  <text class="label" x="590" y="350">Context pack</text>
+  <text class="small" x="590" y="372">trim by max_note_chars</text>
+  <text class="small" x="590" y="390">cap by max_context_chars</text>
+
+  <rect class="orange" x="830" y="316" width="210" height="96" />
+  <text class="label" x="852" y="350">LLM prompt</text>
+  <text class="small" x="852" y="372">citation rules</text>
+  <text class="small" x="852" y="390">Sources + Unknowns</text>
+
+  <rect class="blue" x="568" y="512" width="260" height="96" />
+  <text class="label" x="590" y="546">Grounded answer</text>
+  <text class="small" x="590" y="568">answer with [1], [2]</text>
+  <text class="small" x="590" y="586">source list at the end</text>
+
+  <path class="arrow" d="M254 163 L306 163" />
+  <path class="arrow" d="M496 163 L548 163" />
+  <path class="arrow" d="M738 163 L790 163" />
+  <path class="arrow" d="M980 163 L1032 163" />
+  <path class="arrow" d="M1127 206 C1127 276 450 250 411 316" />
+  <path class="arrow" d="M1127 206 C1127 300 672 268 673 316" />
+  <path class="arrow" d="M778 364 L830 364" />
+  <path class="arrow" d="M935 412 C935 476 712 472 698 512" />
+  <path class="arrow dash" d="M516 364 L568 364" />
+
+  <text class="small" x="62" y="670">Rule: retrieval is embedding-only. If query embedding or stored chunk embeddings are missing, the command fails visibly instead of falling back to keyword search.</text>
+</svg>

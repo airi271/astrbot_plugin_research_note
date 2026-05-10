@@ -6,7 +6,7 @@
 
 ## 読む順番
 
-0. `architecture_overview.md`: Research Note を中心にしたアプリ全体の構造図。
+0. `architecture_overview.md`: Research Note を中心にしたアプリ全体の構造図と機能別 flow 図。
 1. `01_foundation_quality.md`: 実用品質の土台作り。
 2. `02_documents_and_chunks.md`: Document と Chunk への移行。
 3. `03_hybrid_search_and_citation.md`: Embedding Search と Citation。
@@ -27,6 +27,17 @@
 - 各 Phase の最後に手動確認コマンドを実行する。
 - 仕様が迷ったら、より小さい実装を選ぶ。
 - MCP、Web Search、Multi-Agent は後半まで待つ。
+
+## SVG Diagrams
+
+現在の構造と主要機能の流れは以下の SVG で確認できます。
+
+- `research_note_architecture.svg`: plugin 全体の現在のアーキテクチャ。
+- `flow_fixed_rag.svg`: `/research ask` と `/research search` の固定 RAG flow。
+- `flow_import_storage.svg`: add / import / confirm / chunk / embedding / save の flow。
+- `flow_agent_modes.svg`: `/research agent`、`agent_web`、`agent_mcp` の toolset flow。
+- `flow_multi_agent.svg`: `/research agent_multi` の role flow。
+- `flow_storage_backend.svg`: `storage_backend=json|sqlite` と backup の flow。
 
 ## なぜ順番が大事か
 

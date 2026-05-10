@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">Import and storage flow</title>
+  <desc id="desc">How /research add and /research import text/url create documents, chunks, embeddings, and store them.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .box { fill: #ffffff; stroke: #c9d4e2; stroke-width: 2; rx: 16; }
+      .blue { fill: #edf6ff; stroke: #4b9ad9; stroke-width: 2; rx: 16; }
+      .green { fill: #effaf3; stroke: #3fa35f; stroke-width: 2; rx: 16; }
+      .orange { fill: #fff6ea; stroke: #ce7a25; stroke-width: 2; rx: 16; }
+      .purple { fill: #f5f1ff; stroke: #7d65cf; stroke-width: 2; rx: 16; }
+      .red { fill: #fff1f2; stroke: #d85f70; stroke-width: 2; rx: 16; }
+      .title { font: 700 28px sans-serif; fill: #172233; }
+      .label { font: 700 15px sans-serif; fill: #223047; }
+      .small { font: 500 12px sans-serif; fill: #536477; }
+      .arrow { stroke: #607086; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 7 6; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto"><path d="M0 0 L12 4 L0 8 Z" fill="#607086" /></marker>
+  </defs>
+  <rect class="bg" width="1280" height="760" />
+  <text class="title" x="54" y="58">Import and Storage: add, import text, import url</text>
+
+  <rect class="blue" x="70" y="122" width="210" height="88" />
+  <text class="label" x="92" y="154">Direct add</text>
+  <text class="small" x="92" y="176">/research add text</text>
+  <text class="small" x="92" y="194">immediate save path</text>
+
+  <rect class="blue" x="70" y="284" width="210" height="88" />
+  <text class="label" x="92" y="316">Import text/url</text>
+  <text class="small" x="92" y="338">preview first</text>
+  <text class="small" x="92" y="356">pending_imports.json</text>
+
+  <rect class="orange" x="338" y="284" width="210" height="88" />
+  <text class="label" x="360" y="316">URL fetch</text>
+  <text class="small" x="360" y="338">normalize Slack URL</text>
+  <text class="small" x="360" y="356">extract page text</text>
+
+  <rect class="green" x="606" y="284" width="210" height="88" />
+  <text class="label" x="628" y="316">Preview</text>
+  <text class="small" x="628" y="338">title, source_uri</text>
+  <text class="small" x="628" y="356">chunk count estimate</text>
+
+  <rect class="green" x="874" y="284" width="210" height="88" />
+  <text class="label" x="896" y="316">User confirm</text>
+  <text class="small" x="896" y="338">/research import confirm</text>
+  <text class="small" x="896" y="356">only then save</text>
+
+  <rect class="box" x="338" y="470" width="210" height="88" />
+  <text class="label" x="360" y="502">Create document</text>
+  <text class="small" x="360" y="524">doc_001 style id</text>
+  <text class="small" x="360" y="542">metadata + timestamps</text>
+
+  <rect class="box" x="606" y="470" width="210" height="88" />
+  <text class="label" x="628" y="502">Split chunks</text>
+  <text class="small" x="628" y="524">chunk_size</text>
+  <text class="small" x="628" y="542">chunk_overlap</text>
+
+  <rect class="orange" x="874" y="470" width="210" height="88" />
+  <text class="label" x="896" y="502">Embed chunks</text>
+  <text class="small" x="896" y="524">all chunks required</text>
+  <text class="small" x="896" y="542">split again if too long</text>
+
+  <rect class="red" x="874" y="622" width="210" height="70" />
+  <text class="label" x="896" y="652">Embedding failed</text>
+  <text class="small" x="896" y="674">do not save document</text>
+
+  <rect class="purple" x="338" y="622" width="478" height="70" />
+  <text class="label" x="360" y="652">Save store</text>
+  <text class="small" x="360" y="674">JSON atomic write or SQLite transaction full replacement</text>
+
+  <path class="arrow" d="M280 166 C330 166 360 434 443 470" />
+  <path class="arrow" d="M280 328 L338 328" />
+  <path class="arrow" d="M548 328 L606 328" />
+  <path class="arrow" d="M816 328 L874 328" />
+  <path class="arrow" d="M979 372 C979 432 526 418 443 470" />
+  <path class="arrow" d="M548 514 L606 514" />
+  <path class="arrow" d="M816 514 L874 514" />
+  <path class="arrow" d="M979 558 C979 596 730 602 577 622" />
+  <path class="arrow dash" d="M979 558 L979 622" />
+
+  <text class="small" x="70" y="724">Safety rule: external text from URL import is kept as a pending preview and is not persisted until the user confirms it.</text>
+</svg>

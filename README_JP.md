@@ -180,7 +180,7 @@ Research Note を中心にした構造図です。
 
 ![Research Note Architecture](./docs/practical_steps/research_note_architecture.svg)
 
-図の説明は以下にあります。
+図の説明と機能別 flow 図は以下にあります。
 
 ```text
 docs/practical_steps/architecture_overview.md

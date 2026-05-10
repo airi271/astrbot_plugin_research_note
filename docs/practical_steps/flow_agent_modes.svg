@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1380" height="820" viewBox="0 0 1380 820" role="img" aria-labelledby="title desc">
+  <title id="title">Agent modes flow</title>
+  <desc id="desc">How /research agent, agent_web, and agent_mcp choose tool sets and produce grounded answers.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .box { fill: #ffffff; stroke: #c9d4e2; stroke-width: 2; rx: 16; }
+      .blue { fill: #edf6ff; stroke: #4b9ad9; stroke-width: 2; rx: 16; }
+      .green { fill: #effaf3; stroke: #3fa35f; stroke-width: 2; rx: 16; }
+      .orange { fill: #fff6ea; stroke: #ce7a25; stroke-width: 2; rx: 16; }
+      .purple { fill: #f5f1ff; stroke: #7d65cf; stroke-width: 2; rx: 16; }
+      .red { fill: #fff1f2; stroke: #d85f70; stroke-width: 2; rx: 16; }
+      .title { font: 700 28px sans-serif; fill: #172233; }
+      .label { font: 700 15px sans-serif; fill: #223047; }
+      .small { font: 500 12px sans-serif; fill: #536477; }
+      .arrow { stroke: #607086; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 7 6; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto"><path d="M0 0 L12 4 L0 8 Z" fill="#607086" /></marker>
+  </defs>
+  <rect class="bg" width="1380" height="820" />
+  <text class="title" x="54" y="58">Agent Modes: agent, agent_web, agent_mcp</text>
+
+  <rect class="blue" x="70" y="128" width="220" height="86" />
+  <text class="label" x="92" y="160">User task</text>
+  <text class="small" x="92" y="182">/research agent*</text>
+  <text class="small" x="92" y="200">free-form research task</text>
+
+  <rect class="box" x="360" y="128" width="220" height="86" />
+  <text class="label" x="382" y="160">Mode selection</text>
+  <text class="small" x="382" y="182">agent / web / mcp</text>
+  <text class="small" x="382" y="200">config gate checked</text>
+
+  <rect class="green" x="80" y="314" width="260" height="118" />
+  <text class="label" x="104" y="348">/research agent</text>
+  <text class="small" x="104" y="372">Research Note tools only</text>
+  <text class="small" x="104" y="394">search / get / list / add / delete</text>
+  <text class="small" x="104" y="416">safest agent mode</text>
+
+  <rect class="orange" x="400" y="314" width="260" height="118" />
+  <text class="label" x="424" y="348">/research agent_web</text>
+  <text class="small" x="424" y="372">Research Note tools</text>
+  <text class="small" x="424" y="394">+ allowed web tools</text>
+  <text class="small" x="424" y="416">requires enable_web_research</text>
+
+  <rect class="red" x="720" y="314" width="260" height="118" />
+  <text class="label" x="744" y="348">/research agent_mcp</text>
+  <text class="small" x="744" y="372">Research Note tools</text>
+  <text class="small" x="744" y="394">+ allowed MCP / builtin tools</text>
+  <text class="small" x="744" y="416">requires enable_mcp_research</text>
+
+  <rect class="purple" x="1040" y="314" width="260" height="118" />
+  <text class="label" x="1064" y="348">Tool loop agent</text>
+  <text class="small" x="1064" y="372">context.tool_loop_agent</text>
+  <text class="small" x="1064" y="394">max_steps + timeout</text>
+  <text class="small" x="1064" y="416">LLM chooses tools</text>
+
+  <rect class="box" x="250" y="560" width="230" height="94" />
+  <text class="label" x="272" y="592">Research tools</text>
+  <text class="small" x="272" y="614">stored document search</text>
+  <text class="small" x="272" y="632">explicit add/delete only</text>
+
+  <rect class="orange" x="560" y="560" width="230" height="94" />
+  <text class="label" x="582" y="592">External tools</text>
+  <text class="small" x="582" y="614">web, KB, file, MCP</text>
+  <text class="small" x="582" y="632">allowlist / denylist</text>
+
+  <rect class="blue" x="870" y="560" width="260" height="94" />
+  <text class="label" x="892" y="592">Final answer</text>
+  <text class="small" x="892" y="614">Slack-friendly format</text>
+  <text class="small" x="892" y="632">separate stored vs external info</text>
+
+  <path class="arrow" d="M290 171 L360 171" />
+  <path class="arrow" d="M470 214 C470 264 210 270 210 314" />
+  <path class="arrow" d="M470 214 C470 264 530 270 530 314" />
+  <path class="arrow" d="M470 214 C470 264 850 270 850 314" />
+  <path class="arrow" d="M340 373 C470 286 900 286 1040 373" />
+  <path class="arrow" d="M660 373 C760 316 940 316 1040 373" />
+  <path class="arrow" d="M980 373 L1040 373" />
+  <path class="arrow" d="M210 432 C210 500 298 512 365 560" />
+  <path class="arrow" d="M530 432 C530 500 420 506 365 560" />
+  <path class="arrow" d="M850 432 C850 512 452 512 365 560" />
+  <path class="arrow dash" d="M530 432 C556 500 628 512 675 560" />
+  <path class="arrow dash" d="M850 432 C820 500 732 512 675 560" />
+  <path class="arrow" d="M480 607 L560 607" />
+  <path class="arrow" d="M790 607 L870 607" />
+
+  <text class="small" x="70" y="746">Safety rule: web, MCP, file, Python, and write-capable tools are only added through explicit modes and configured allowlists.</text>
+</svg>

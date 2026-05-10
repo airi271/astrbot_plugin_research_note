@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Storage backend flow</title>
+  <desc id="desc">How storage_backend chooses JSON or SQLite storage and creates backups.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .box { fill: #ffffff; stroke: #c9d4e2; stroke-width: 2; rx: 16; }
+      .blue { fill: #edf6ff; stroke: #4b9ad9; stroke-width: 2; rx: 16; }
+      .green { fill: #effaf3; stroke: #3fa35f; stroke-width: 2; rx: 16; }
+      .orange { fill: #fff6ea; stroke: #ce7a25; stroke-width: 2; rx: 16; }
+      .purple { fill: #f5f1ff; stroke: #7d65cf; stroke-width: 2; rx: 16; }
+      .title { font: 700 28px sans-serif; fill: #172233; }
+      .label { font: 700 15px sans-serif; fill: #223047; }
+      .small { font: 500 12px sans-serif; fill: #536477; }
+      .arrow { stroke: #607086; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 7 6; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto"><path d="M0 0 L12 4 L0 8 Z" fill="#607086" /></marker>
+  </defs>
+  <rect class="bg" width="1280" height="720" />
+  <text class="title" x="54" y="58">Storage Backend: json or sqlite</text>
+
+  <rect class="blue" x="70" y="128" width="230" height="90" />
+  <text class="label" x="92" y="160">Plugin startup</text>
+  <text class="small" x="92" y="182">read storage_backend</text>
+  <text class="small" x="92" y="200">default: json</text>
+
+  <rect class="box" x="370" y="128" width="230" height="90" />
+  <text class="label" x="392" y="160">create_note_store</text>
+  <text class="small" x="392" y="182">normalize backend name</text>
+  <text class="small" x="392" y="200">unsupported -&gt; json</text>
+
+  <rect class="green" x="190" y="338" width="270" height="116" />
+  <text class="label" x="212" y="372">JSON NoteStore</text>
+  <text class="small" x="212" y="394">data/research_notes.json</text>
+  <text class="small" x="212" y="416">atomic tmp replace</text>
+  <text class="small" x="212" y="438">easy to inspect manually</text>
+
+  <rect class="purple" x="740" y="338" width="270" height="116" />
+  <text class="label" x="762" y="372">SQLiteNoteStore</text>
+  <text class="small" x="762" y="394">data/research_notes.sqlite3</text>
+  <text class="small" x="762" y="416">documents and chunks tables</text>
+  <text class="small" x="762" y="438">better growth path</text>
+
+  <rect class="box" x="500" y="528" width="270" height="90" />
+  <text class="label" x="522" y="560">Common API</text>
+  <text class="small" x="522" y="582">load_store / save_store</text>
+  <text class="small" x="522" y="600">create_backup</text>
+
+  <rect class="orange" x="890" y="528" width="270" height="90" />
+  <text class="label" x="912" y="560">Backups</text>
+  <text class="small" x="912" y="582">data/backups</text>
+  <text class="small" x="912" y="600">.bak.json or .bak.sqlite3</text>
+
+  <path class="arrow" d="M300 173 L370 173" />
+  <path class="arrow" d="M485 218 C485 284 325 286 325 338" />
+  <path class="arrow" d="M600 173 C730 182 875 260 875 338" />
+  <path class="arrow" d="M460 396 C520 454 596 472 635 528" />
+  <path class="arrow" d="M875 454 C820 492 734 500 635 528" />
+  <path class="arrow dash" d="M770 573 L890 573" />
+
+  <text class="small" x="70" y="674">Important: __pycache__ files are Python bytecode caches. SQLite data is stored in data/research_notes.sqlite3, not in importers/__pycache__.</text>
+</svg>

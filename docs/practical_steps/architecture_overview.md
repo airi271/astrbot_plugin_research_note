@@ -1,104 +1,159 @@
 # Architecture Overview
 
-このファイルは、Research Note Plugin を中心にした AstrBot アプリ全体の構造を視覚化したものです。
+このページは、Research Note Plugin の構造と動き方を図で説明するページです。
 
-画像ファイルです。
+プログラミングに詳しくない方でも読めるように、「何が入力され、どこに保存され、どのように AI が答えるのか」を中心に説明します。
 
-```text
-docs/practical_steps/research_note_architecture.svg
-```
-
-Markdown 上では以下のように表示できます。
+## 全体像
 
 ![Research Note Architecture](./research_note_architecture.svg)
 
-## 図の読み方
+この図は、Research Note Plugin 全体の地図です。
 
-左から右へ、ユーザーの入力が Research Note Plugin に届き、保存済み資料を検索し、LLM へ渡って回答が返る流れです。
+左側の `User Side` は、ユーザーが Slack や Telegram などから `/research ...` という命令を送る場所です。
 
-中心にあるのは `Research Note Plugin` です。
+中央の `AstrBot Core` は、チャットから来た命令を plugin に届ける土台です。Research Note は AstrBot の plugin として動いています。
 
-- `Commands`: `/research add`、`/research ask`、`/research search` など、人間が直接使う入口です。
-- `Agent Mode`: `/research agent` で `tool_loop_agent()` を使う入口です。
-- `Search Layer`: keyword、embedding、hybrid search を担当します。
-- `Prompt Layer`: citation、Sources、Unknowns を含む prompt を作ります。
-- `Research Tools`: `research_search`、`research_get_document`、`research_add_text` など、LLM や agent が呼ぶ tool です。
+中央右の `Research Note Plugin` が、この plugin の本体です。ここで資料の追加、資料の検索、質問への回答、import、agent 実行などを処理します。
 
-## 通常の流れ
+右上の `LLM Providers` は、AI の回答を作る chat model と、文章を検索用の数字に変換する embedding model です。
 
-基本の `/research ask` はこの流れです。
+左下の `Research Storage` は、保存済み資料の置き場所です。現在は `research_notes.json` または `research_notes.sqlite3` を選べます。
+
+右下の `External Research` は、Web Search、ページ抽出、AstrBot Knowledge Base、ファイル読み取り、Python 実行などの外部 tool です。これらは常に全部使うのではなく、設定で許可した場合だけ agent が使います。
+
+この図で一番大事なのは、Research Note が「資料を保存する場所」と「資料に基づいて AI に答えさせる入口」の両方を担当している点です。
+
+## Fixed RAG
+
+![Fixed RAG Flow](./flow_fixed_rag.svg)
+
+この図は、`/research ask` と `/research search` の動きです。
+
+`/research search <query>` は、AI に文章回答を作らせず、保存済み資料の中から近い chunk を探して表示します。
+
+`/research ask <question>` は、まず保存済み資料から近い chunk を探し、その結果を AI に渡して回答を作ります。
+
+検索では `embedding` を使います。embedding とは、文章の意味を数字のリストに変換したものです。似た意味の文章は、数字の距離も近くなります。
+
+この plugin は keyword fallback を使いません。つまり、単語の一致だけで無理に探すのではなく、embedding が作れない場合や保存済み chunk に embedding がない場合は、エラーとして分かるようにします。
+
+`/research ask` の最後では、AI に `Sources` と `Unknowns` を含む prompt を渡します。これにより、根拠があることと分からないことを分けて答えさせます。
+
+この流れは一番安定した基本機能です。agent より単純で、動作を予測しやすいです。
+
+## Import And Storage
+
+![Import and Storage Flow](./flow_import_storage.svg)
+
+この図は、資料を保存する流れです。
+
+`/research add <text>` は、ユーザーが貼り付けた文章をすぐ保存する入口です。
+
+`/research import text <text>` と `/research import url <url>` は、いきなり保存せず、まず preview を作ります。preview では、タイトル、取得元、保存される内容の一部、chunk 数の目安を確認できます。
+
+URL import では、Slack や Markdown 形式の URL も普通の URL に直してから取得します。HTML ページの場合は、title と本文らしい text を取り出します。
+
+preview 後に `/research import confirm <pending_id>` を実行した時だけ、資料として保存されます。confirm するまでは `pending_imports.json` に一時保存されます。
+
+保存時には、まず Document を作ります。Document は資料1件分の情報で、`doc_001` のような ID、title、source_uri、作成日時などを持ちます。
+
+次に本文を Chunk に分けます。Chunk は検索しやすい短い文章の単位です。長い資料をそのまま検索するより、chunk に分ける方が根拠を示しやすくなります。
+
+その後、すべての chunk に embedding を作ります。全 chunk の embedding 作成に成功した場合だけ保存します。途中で失敗した場合は、その資料は保存しません。
+
+保存先は設定により JSON または SQLite です。どちらを選んでも、plugin のコマンドの使い方は同じです。
+
+## Agent Modes
+
+![Agent Modes Flow](./flow_agent_modes.svg)
+
+この図は、3種類の agent mode の違いです。
+
+`/research agent <task>` は、Research Note 内の tool だけを使う agent です。保存済み資料の検索、document の確認、一覧表示、明示された場合の保存や削除ができます。
+
+`/research agent_web <task>` は、Research Note tools に加えて、許可済み Web Search tool を使える agent です。設定の `enable_web_research` が true の時だけ使えます。
+
+`/research agent_mcp <task>` は、Research Note tools に加えて、許可済み MCP tool や AstrBot builtin tool を使える agent です。設定の `enable_mcp_research` が true の時だけ使えます。
+
+3つの agent は順番に実行されるものではありません。ユーザーが選んだコマンドに応じて、どれか1つの mode が実行されます。
+
+agent の中では `tool_loop_agent` が使われます。これは、AI が「資料を探す必要がある」と判断した時に `research_search` などの tool を呼び、その結果を見て回答を作る仕組みです。
+
+外部 tool は便利ですが、ファイルや外部APIに触れる可能性があります。そのため Web/MCP 系は通常 agent とは分け、設定で許可したものだけを渡します。
+
+保存と削除は安全ルールがあります。`research_add_text` はユーザーが明確に保存を頼んだ時だけ使い、`research_delete_document` は `doc_id` と `confirm_doc_id` が一致した時だけ削除します。
+
+## Multi-Agent
+
+![Multi-Agent Flow](./flow_multi_agent.svg)
+
+この図は、`/research agent_multi <task>` の動きです。
+
+Multi-Agent は、1つの AI が全部を行うのではなく、役割を分けて順番に処理します。
+
+最初の `Retriever` は、調査材料を集める役です。ここだけ `tool_loop_agent` を使い、Research Note tools、許可済み builtin tools、MCP tools、必要なら作成系 tools を使えます。
+
+次の `Reader` は、Retriever が集めた材料を読み、重要な主張、比較点、矛盾、不明点を整理します。
+
+次の `Writer` は、Reader の整理をもとに draft answer を作ります。
+
+次の `Critic` は、draft answer に根拠不足、引用不足、資料にない断定、矛盾の見落としがないか確認します。
+
+最後の `Final Writer` は、Critic の指摘を反映して最終回答を作ります。
+
+この flow は `Retriever -> Reader -> Writer -> Critic -> Final Writer` の順番です。
+
+`show_multi_agent_trace` を true にすると、最終回答だけでなく、途中の Retriever、Reader、Draft、Critique も出力に含めます。
+
+`enable_multi_agent_creation_tools` が true の場合、Python 実行やファイル作成などの creation tools も Retriever に追加できます。これは強力なので、必要な時だけ使う想定です。
+
+## Storage Backend
+
+![Storage Backend Flow](./flow_storage_backend.svg)
+
+この図は、資料をどこに保存するかの流れです。
+
+plugin 起動時に `storage_backend` を読みます。設定がない場合は `json` です。
+
+`storage_backend` が `json` の場合、保存先は以下です。
 
 ```text
-User
-Chat Platform
-AstrBot Core
-Research Note Commands
-Search Layer
-Research Storage
-Prompt Layer
-LLM Provider
-Answer with Sources
+data/research_notes.json
 ```
 
-これは一番安定した固定 RAG です。まずここを強くします。
+JSON は普通のテキストファイルなので、人間が中身を直接確認しやすいです。資料数が少ないうちは分かりやすい保存方法です。
 
-## Agent の流れ
-
-`/research agent` はこの流れです。
+`storage_backend` が `sqlite` の場合、保存先は以下です。
 
 ```text
-User
-AstrBot Core
-Research Note Agent Mode
-ToolSet
-research_search / research_get_document
-LLM Provider
-Final Answer
+data/research_notes.sqlite3
 ```
 
-Agent mode は LLM が必要に応じて tool を呼びます。便利ですが、通常の `/research ask` より複雑です。
+SQLite は1つのデータベースファイルです。現在の実装では `documents` table と `chunks` table に、Document と Chunk の JSON を保存します。
 
-## 外部調査の流れ
+JSON と SQLite は内部の保存方法が違いますが、plugin から見ると同じ `load_store`、`save_store`、`create_backup` で扱います。そのため、`/research add` や `/research ask` の使い方は変わりません。
 
-Phase 6 以降では、外部情報を扱います。
+`/research backup` を実行すると、現在使っている backend の backup が `data/backups` に作られます。
 
-```text
-Import URL / Web Search / MCP Tool
-Preview
-User Confirm
-Document + Chunk
-Research Storage
-```
+`__pycache__` にある `.pyc` ファイルは Python の自動キャッシュです。SQLite のデータではありません。
 
-重要なのは、外部情報を勝手に永続保存しないことです。preview と confirm を挟みます。
+## 実装との照合メモ
 
-## Multi-Agent の流れ
+このページの図は、以下の実装に合わせています。
 
-Phase 9 以降では、研究作業を分担します。
+- Commands: `main.py` の `/research add/list/show/ask/agent/agent_web/agent_mcp/agent_multi/import/search/delete/reindex/backup/clear`
+- Tools: `research_search`、`research_get_document`、`research_list_documents`、`research_add_text`、`research_delete_document`
+- Search: `search.py` と `tool_utils.py` の embedding-only cosine similarity
+- Storage: `store.py` の `NoteStore` と `SQLiteNoteStore`
+- Import: `pending_imports.py` と `importers/url_importer.py`
+- Agent prompts: `agent_prompts.py`
 
-```text
-Retriever: 検索と context pack 作成
-Reader: 資料要約
-Critic: 根拠不足や矛盾の指摘
-Writer: 最終回答や研究ノート作成
-```
+## 守っている方針
 
-Multi-Agent は後半の機能です。先に chunk、citation、tool 化、agent mode を安定させます。
-
-## Phase との対応
-
-- Phase 1-5: Research Note Plugin の中心部分を強くする。
-- Phase 6-8: Import、Web Search、MCP で外部情報を扱う。
-- Phase 9: Multi-Agent で役割分担する。
-- Phase 10: brief、outline、compare、claims を出力する。
-- Phase 11: JSON から SQLite / Milvus など保存 backend を強化する。
-- Phase 12: 検索と回答品質を評価する。
-
-## 実装で守ること
-
-- まず `/research ask` を安定させる。
-- 長文は Document と Chunk に分ける。
-- 回答には必ず source を付ける。
-- Web Search と MCP は allowlist で制限する。
-- 外部情報は勝手に保存しない。
-- Multi-Agent は必要になってから入れる。
+- 保存済み資料は Document と Chunk に分けます。
+- 保存する chunk には embedding を作ります。
+- 検索は embedding-only です。
+- Web/MCP/tool の外部情報は、保存済み資料と区別します。
+- 外部情報は勝手に保存せず、import confirm または明示的な保存依頼を使います。
+- 削除は確認付きで行います。

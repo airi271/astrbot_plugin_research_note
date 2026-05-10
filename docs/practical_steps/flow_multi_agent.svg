@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1380" height="820" viewBox="0 0 1380 820" role="img" aria-labelledby="title desc">
+  <title id="title">Multi-agent flow</title>
+  <desc id="desc">How /research agent_multi runs Retriever, Reader, Writer, Critic, and Final Writer roles.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .box { fill: #ffffff; stroke: #c9d4e2; stroke-width: 2; rx: 16; }
+      .blue { fill: #edf6ff; stroke: #4b9ad9; stroke-width: 2; rx: 16; }
+      .green { fill: #effaf3; stroke: #3fa35f; stroke-width: 2; rx: 16; }
+      .orange { fill: #fff6ea; stroke: #ce7a25; stroke-width: 2; rx: 16; }
+      .purple { fill: #f5f1ff; stroke: #7d65cf; stroke-width: 2; rx: 16; }
+      .red { fill: #fff1f2; stroke: #d85f70; stroke-width: 2; rx: 16; }
+      .title { font: 700 28px sans-serif; fill: #172233; }
+      .label { font: 700 15px sans-serif; fill: #223047; }
+      .small { font: 500 12px sans-serif; fill: #536477; }
+      .arrow { stroke: #607086; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 7 6; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto"><path d="M0 0 L12 4 L0 8 Z" fill="#607086" /></marker>
+  </defs>
+  <rect class="bg" width="1380" height="820" />
+  <text class="title" x="54" y="58">Multi-Agent: /research agent_multi</text>
+
+  <rect class="blue" x="70" y="128" width="220" height="88" />
+  <text class="label" x="92" y="160">User task</text>
+  <text class="small" x="92" y="182">requires enable_multi_agent</text>
+  <text class="small" x="92" y="200">one research objective</text>
+
+  <rect class="green" x="350" y="128" width="220" height="88" />
+  <text class="label" x="372" y="160">Retriever</text>
+  <text class="small" x="372" y="182">tool_loop_agent</text>
+  <text class="small" x="372" y="200">search, web, MCP, files</text>
+
+  <rect class="orange" x="630" y="128" width="220" height="88" />
+  <text class="label" x="652" y="160">Reader</text>
+  <text class="small" x="652" y="182">read retrieved evidence</text>
+  <text class="small" x="652" y="200">summarize key points</text>
+
+  <rect class="purple" x="910" y="128" width="220" height="88" />
+  <text class="label" x="932" y="160">Writer</text>
+  <text class="small" x="932" y="182">draft structured answer</text>
+  <text class="small" x="932" y="200">include references</text>
+
+  <rect class="red" x="630" y="354" width="220" height="88" />
+  <text class="label" x="652" y="386">Critic</text>
+  <text class="small" x="652" y="408">find missing evidence</text>
+  <text class="small" x="652" y="426">flag contradictions</text>
+
+  <rect class="blue" x="910" y="354" width="220" height="88" />
+  <text class="label" x="932" y="386">Final Writer</text>
+  <text class="small" x="932" y="408">revise with critique</text>
+  <text class="small" x="932" y="426">Slack-friendly answer</text>
+
+  <rect class="box" x="350" y="572" width="220" height="94" />
+  <text class="label" x="372" y="604">Tool sources</text>
+  <text class="small" x="372" y="626">Research Note tools</text>
+  <text class="small" x="372" y="644">allowed builtin / MCP</text>
+
+  <rect class="orange" x="70" y="572" width="220" height="94" />
+  <text class="label" x="92" y="604">Creation tools</text>
+  <text class="small" x="92" y="626">optional Python/file tools</text>
+  <text class="small" x="92" y="644">enable_multi_agent_creation_tools</text>
+
+  <rect class="green" x="910" y="572" width="300" height="94" />
+  <text class="label" x="932" y="604">Output</text>
+  <text class="small" x="932" y="626">final answer</text>
+  <text class="small" x="932" y="644">optional trace when show_multi_agent_trace=true</text>
+
+  <path class="arrow" d="M290 172 L350 172" />
+  <path class="arrow" d="M570 172 L630 172" />
+  <path class="arrow" d="M850 172 L910 172" />
+  <path class="arrow" d="M1020 216 C1020 292 740 294 740 354" />
+  <path class="arrow" d="M850 398 L910 398" />
+  <path class="arrow" d="M1020 442 L1020 572" />
+  <path class="arrow dash" d="M460 572 L460 216" />
+  <path class="arrow dash" d="M290 619 L350 619" />
+  <path class="arrow dash" d="M460 666 C540 734 996 734 1060 666" />
+
+  <text class="small" x="70" y="746">Rule: Retriever may use stronger toolsets, but final writing must separate stored evidence from external or generated artifacts.</text>
+</svg>
