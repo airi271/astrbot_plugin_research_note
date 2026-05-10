@@ -16,6 +16,7 @@
 - `/research import text/url/confirm` で preview 後に資料を取り込める。
 - `/research agent_web` で許可済み Web Search tool を使う mode を用意できている。
 - `/research agent_mcp` で許可済み MCP / AstrBot builtin tool を使う mode を用意できている。
+- `/research agent_multi` で Retriever / Reader / Writer / Critic の固定 flow を使える。
 - JSON 保存ができる。
 - embedding provider を使って embedding 検索できる。
 - 全 chunk に embedding を付ける方針で、キーワード検索 fallback は使わない。
@@ -29,7 +30,7 @@
 - PDF、Markdown、Web検索結果などを資料化する入口がまだ弱い。
 - Web検索結果を保存候補として管理する仕組みはまだ弱い。
 - MCP / AstrBot builtin tool の結果を保存候補として管理する仕組みはまだ弱い。
-- 複数の専門 agent に仕事を分ける構造がまだない。
+- 複数 agent の中間結果を評価・再利用する仕組みはまだ弱い。
 
 ## 目標
 

@@ -115,6 +115,41 @@
       "type": "string"
     }
   },
+  "enable_multi_agent": {
+    "description": "research agent_multi で複数 role の調査 flow を使う",
+    "type": "bool",
+    "default": false
+  },
+  "multi_agent_retriever_max_steps": {
+    "description": "research agent_multi の Retriever が tool を呼ぶ最大ステップ数",
+    "type": "int",
+    "default": 12,
+    "minimum": 1,
+    "maximum": 50
+  },
+  "show_multi_agent_trace": {
+    "description": "research agent_multi の中間結果を出力に含める",
+    "type": "bool",
+    "default": false
+  },
+  "enable_multi_agent_creation_tools": {
+    "description": "research agent_multi に Python 実行やファイル作成 tool を追加する",
+    "type": "bool",
+    "default": true
+  },
+  "multi_agent_creation_tools": {
+    "description": "research agent_multi に追加する作成系 AstrBot builtin tool 名",
+    "type": "list",
+    "default": [
+      "astrbot_execute_python",
+      "astrbot_execute_ipython",
+      "astrbot_file_write_tool",
+      "astrbot_download_file"
+    ],
+    "items": {
+      "type": "string"
+    }
+  },
   "max_import_chars": {
     "description": "import で取り込む本文の最大文字数",
     "type": "int",

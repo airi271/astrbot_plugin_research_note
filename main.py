@@ -9,6 +9,11 @@ from astrbot.core.tools.registry import get_builtin_tool_name, iter_builtin_tool
 
 from .agent_prompts import (
     build_mcp_research_agent_system_prompt,
+    build_multi_critic_prompt,
+    build_multi_final_prompt,
+    build_multi_reader_prompt,
+    build_multi_retriever_prompt,
+    build_multi_writer_prompt,
     build_research_agent_system_prompt,
     build_web_research_agent_system_prompt,
 )
@@ -91,6 +96,7 @@ class ResearchNotePlugin(Star):
             "research show",
             "research delete",
             "research search",
+            "research agent_multi",
             "research agent_mcp",
             "research agent_web",
             "research agent",
@@ -680,6 +686,29 @@ class ResearchNotePlugin(Star):
             tool_set.add_tool(tool)
         return tool_set
 
+    def _get_multi_agent_tool_set(self) -> ToolSet:
+        tool_set = self._get_mcp_research_tool_set()
+        if not self.config.get("enable_multi_agent_creation_tools", True):
+            return tool_set
+
+        tool_manager = self.context.get_llm_tool_manager()
+        for name in self._config_list(
+            "multi_agent_creation_tools",
+            [
+                "astrbot_execute_python",
+                "astrbot_execute_ipython",
+                "astrbot_file_write_tool",
+                "astrbot_download_file",
+            ],
+        ):
+            tool = tool_manager.get_func(name)
+            if not tool:
+                logger.warning(f"Configured multi-agent creation tool not found: {name}")
+                continue
+            logger.warning(f"Allowed creation tool for agent_multi: {name}")
+            tool_set.add_tool(tool)
+        return tool_set
+
     async def initialize(self):
         """Optional async initialization hook."""
 
@@ -702,6 +731,7 @@ class ResearchNotePlugin(Star):
     /research agent <task> - Research Note tools を使って調査
     /research agent_web <task> - 保存済み資料と Web Search で調査
     /research agent_mcp <task> - 保存済み資料と許可済み MCP / AstrBot tools で調査
+    /research agent_multi <task> - 複数 role で調査、読解、執筆、検証
     /research import text <text> - preview 後に資料として取り込み
     /research import url <url> - URL を preview 後に資料として取り込み
     /research import confirm <id> - preview 済み import を保存
@@ -1108,6 +1138,99 @@ class ResearchNotePlugin(Star):
             else "Research MCP agent は回答を生成できませんでした。"
         )
         yield event.plain_result(answer)
+
+    async def _llm_text(self, provider_id: str, prompt: str, fallback: str = "") -> str:
+        response = await self.context.llm_generate(
+            chat_provider_id=provider_id,
+            prompt=prompt,
+        )
+        return response.completion_text if response else fallback
+
+    @research_group.command("agent_multi")
+    async def research_agent_multi(self, event: AstrMessageEvent, task: str = ""):
+        """複数 role の固定 flow で調査、読解、執筆、検証を実行します。"""
+        # Multi-agent mode は最も強い調査 mode。MCP / builtin / web toolset を Retriever に渡す。
+        if not self.config.get("enable_multi_agent", False):
+            yield event.plain_result("Multi-agent research は設定で無効です。")
+            return
+
+        task = self._extract_research_tail(event)
+        if not task:
+            yield event.plain_result("agent_multi に依頼する内容を入力してください。")
+            return
+
+        try:
+            provider_id = await self.context.get_current_chat_provider_id(
+                umo=event.unified_msg_origin
+            )
+        except Exception:
+            logger.error("Failed to get current chat provider.", exc_info=True)
+            yield event.plain_result("利用可能な LLM provider が見つかりません。")
+            return
+
+        tools = self._get_multi_agent_tool_set()
+        if tools.empty():
+            yield event.plain_result("Research multi-agent で利用できる tool がありません。")
+            return
+
+        try:
+            retriever_resp = await self.context.tool_loop_agent(
+                event=event,
+                chat_provider_id=provider_id,
+                prompt=build_multi_retriever_prompt(
+                    task,
+                    strict_grounding=self.config.get("strict_grounding", True),
+                ),
+                system_prompt=build_mcp_research_agent_system_prompt(
+                    strict_grounding=self.config.get("strict_grounding", True)
+                ),
+                tools=tools,
+                max_steps=int(self.config.get("multi_agent_retriever_max_steps", 12)),
+                tool_call_timeout=int(
+                    self.config.get("agent_tool_call_timeout", 60)
+                ),
+            )
+            research_pack = (
+                retriever_resp.completion_text
+                if retriever_resp
+                else "Research Pack を生成できませんでした。"
+            )
+            reader_notes = await self._llm_text(
+                provider_id,
+                build_multi_reader_prompt(task, research_pack),
+                fallback="Reader Notes を生成できませんでした。",
+            )
+            draft_answer = await self._llm_text(
+                provider_id,
+                build_multi_writer_prompt(task, reader_notes),
+                fallback="Draft Answer を生成できませんでした。",
+            )
+            critique = await self._llm_text(
+                provider_id,
+                build_multi_critic_prompt(task, draft_answer, research_pack),
+                fallback="Critique を生成できませんでした。",
+            )
+            final_answer = await self._llm_text(
+                provider_id,
+                build_multi_final_prompt(task, draft_answer, critique, research_pack),
+                fallback="最終回答を生成できませんでした。",
+            )
+        except Exception:
+            logger.error("Research multi-agent failed.", exc_info=True)
+            yield event.plain_result(
+                "Research multi-agent の実行に失敗しました。ログを確認してください。"
+            )
+            return
+
+        if self.config.get("show_multi_agent_trace", False):
+            final_answer += (
+                "\n\n---\nMulti-Agent Trace\n\n"
+                f"Retriever:\n{research_pack}\n\n"
+                f"Reader:\n{reader_notes}\n\n"
+                f"Draft:\n{draft_answer}\n\n"
+                f"Critique:\n{critique}"
+            )
+        yield event.plain_result(final_answer)
 
     @research_group.command("import")
     async def research_import_command(self, event: AstrMessageEvent, args: str = ""):

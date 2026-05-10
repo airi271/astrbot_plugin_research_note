@@ -20,6 +20,7 @@ See `docs/practical_steps/architecture_overview.md` for a short explanation of t
 - Ask source-grounded questions with `/research ask <question>`.
 - Run explicit web-assisted research with `/research agent_web <task>` when enabled.
 - Run explicit MCP / AstrBot-tool-assisted research with `/research agent_mcp <task>` when enabled.
+- Run staged multi-agent research with `/research agent_multi <task>` when enabled.
 - Use embedding search through an AstrBot embedding provider.
 - Register LLM tools: `research_search`, `research_get_document`, `research_list_documents`, `research_add_text`, and `research_delete_document`.
 - Configure search and safety options through `_conf_schema.json`.
@@ -62,6 +63,7 @@ docs/practical_steps/architecture_overview.md
 /research agent <task>
 /research agent_web <task>
 /research agent_mcp <task>
+/research agent_multi <task>
 /research import text <text>
 /research import url <url>
 /research import confirm <pending_id>
@@ -92,6 +94,11 @@ The plugin currently supports these configuration items:
 - `allowed_builtin_tools`: AstrBot builtin tool names passed to `/research agent_mcp`; defaults to file read, grep, knowledge base search, and Tavily tools.
 - `allow_all_builtin_tools`: Whether `/research agent_mcp` receives every AstrBot builtin tool.
 - `denied_builtin_tools`: Builtin tool names excluded even when all builtin tools are enabled.
+- `enable_multi_agent`: Whether `/research agent_multi` runs the staged Retriever/Reader/Writer/Critic flow.
+- `multi_agent_retriever_max_steps`: Maximum tool-calling steps for the multi-agent Retriever.
+- `show_multi_agent_trace`: Whether `/research agent_multi` includes intermediate role outputs.
+- `enable_multi_agent_creation_tools`: Whether `/research agent_multi` can use Python and file creation tools.
+- `multi_agent_creation_tools`: Creation tool names added to `/research agent_multi`.
 - `max_import_chars`: Maximum text characters kept from an import preview.
 - `import_preview_chars`: Maximum characters shown in an import preview.
 - `import_url_timeout`: Timeout seconds for URL import fetching.
