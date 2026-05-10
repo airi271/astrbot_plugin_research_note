@@ -17,10 +17,12 @@
 - `/research agent_web` で許可済み Web Search tool を使う mode を用意できている。
 - `/research agent_mcp` で許可済み MCP / AstrBot builtin tool を使う mode を用意できている。
 - `/research agent_multi` で Retriever / Reader / Writer / Critic の固定 flow を使える。
-- JSON 保存ができる。
+- JSON 保存と SQLite 保存を設定で切り替えられる。
+- `/research backup` で現在の保存 backend を backup できる。
 - embedding provider を使って embedding 検索できる。
 - 全 chunk に embedding を付ける方針で、キーワード検索 fallback は使わない。
 - `top_k`、`max_note_chars`、`max_add_chars`、`max_import_chars`、`strict_grounding` を設定化できている。
+- `storage_backend` で `json` または `sqlite` を選べる。
 
 現在の実装は「学習用の最小 RAG」としては十分です。実用化では、次の問題を順番に解決します。
 
@@ -418,16 +420,18 @@ AstrBot の SubAgent Orchestrator を使う場合は、設定で `transfer_to_*`
 
 作業です。
 
-- JSON が遅くなったら SQLite へ移行する。
-- embedding は SQLite の別テーブルまたはファイルに分ける。
+- `storage_backend` で JSON と SQLite を切り替えられるようにする。
+- 最初の SQLite 実装では、現行 store API を保ち、document / chunk JSON を table に保存する。
+- embedding は当面 chunk JSON 内に保存し、重くなったら別テーブルまたはファイルに分ける。
 - 必要になったら Milvus / Milvus Lite を検討する。
-- backup と export/import を作る。
+- `/research backup` を作る。export/import は必要になってから追加する。
 - schema_version を保存し migration を管理する。
 
 完了条件です。
 
 - 数百から数千 chunk で実用速度を維持できる。
-- データ移行と backup ができる。
+- JSON / SQLite のどちらでも既存 command が同じように動く。
+- backup ができる。
 - 壊れた保存ファイルから復旧しやすい。
 
 ## Phase 12: 品質評価

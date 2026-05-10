@@ -21,7 +21,7 @@ from .chunking import split_text_into_chunks
 from .importers.url_importer import fetch_url_text
 from .pending_imports import PendingImportStore
 from .prompts import build_answer_prompt
-from .store import NoteStore
+from .store import create_note_store
 from .tool_utils import (
     ResearchToolError,
     compact_search_results,
@@ -41,9 +41,16 @@ class ResearchNotePlugin(Star):
         super().__init__(context)
         self.config = config
         self.data_dir = Path(__file__).parent / "data"
-        self.notes_file = self.data_dir / "research_notes.json"
+        self.storage_backend = (
+            str(self.config.get("storage_backend", "json")).strip().lower()
+        )
+        if self.storage_backend not in {"json", "sqlite"}:
+            logger.warning(
+                f"Unsupported storage_backend: {self.storage_backend}; using json"
+            )
+            self.storage_backend = "json"
         self.pending_imports = PendingImportStore(self.data_dir / "pending_imports.json")
-        self.store = NoteStore(self.notes_file)
+        self.store = create_note_store(self.data_dir, self.storage_backend)
         self._register_research_tools()
 
     # 生成新的 doc id，避免删除资料后重复使用旧 id。
@@ -737,10 +744,23 @@ class ResearchNotePlugin(Star):
     /research import confirm <id> - preview 済み import を保存
     /research delete <doc_id> --confirm - 指定した資料を削除
     /research reindex - 既存資料の embedding を再作成
+    /research backup - 保存 backend の backup を作成
     /research clear --confirm - 全資料を削除
     /research help - このヘルプを表示
     """
         yield event.plain_result(text)
+
+    @research_group.command("backup")
+    async def research_backup(self, event: AstrMessageEvent):
+        """保存 backend の backup を作成します。"""
+        backup_file = self.store.create_backup(self.data_dir / "backups")
+        if not backup_file:
+            yield event.plain_result("保存ファイルがまだないため、backup は作成されませんでした。")
+            return
+        yield event.plain_result(
+            f"backup を作成しました: {backup_file.name}\n"
+            f"backend: {self.storage_backend}"
+        )
 
     @research_group.command("add")
     async def research_add(self, event: AstrMessageEvent, content: str = ""):

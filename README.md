@@ -22,6 +22,8 @@ See `docs/practical_steps/architecture_overview.md` for a short explanation of t
 - Run explicit MCP / AstrBot-tool-assisted research with `/research agent_mcp <task>` when enabled.
 - Run staged multi-agent research with `/research agent_multi <task>` when enabled.
 - Use embedding search through an AstrBot embedding provider.
+- Store data in either JSON or SQLite with the same command interface.
+- Create a local storage backup with `/research backup`.
 - Register LLM tools: `research_search`, `research_get_document`, `research_list_documents`, `research_add_text`, and `research_delete_document`.
 - Configure search and safety options through `_conf_schema.json`.
 - Follow the practical roadmap toward citation quality, tool use, MCP, and multi-agent research workflows.
@@ -33,7 +35,7 @@ Research Note is currently an early `v0.1.0` plugin. The minimal document/chunk 
 Implemented core flow:
 
 ```text
-Add material -> Split into chunks -> Store in JSON -> Search relevant chunks -> Build prompt -> Ask LLM -> Return answer with source IDs
+Add material -> Split into chunks -> Store in JSON or SQLite -> Search relevant chunks -> Build prompt -> Ask LLM -> Return answer with source IDs
 ```
 
 Planned practical improvements are documented in:
@@ -69,6 +71,7 @@ docs/practical_steps/architecture_overview.md
 /research import confirm <pending_id>
 /research delete <doc_id> --confirm
 /research reindex
+/research backup
 /research clear --confirm
 ```
 
@@ -97,6 +100,7 @@ The plugin currently supports these configuration items:
 - `enable_multi_agent`: Whether `/research agent_multi` runs the staged Retriever/Reader/Writer/Critic flow.
 - `multi_agent_retriever_max_steps`: Maximum tool-calling steps for the multi-agent Retriever.
 - `show_multi_agent_trace`: Whether `/research agent_multi` includes intermediate role outputs.
+- `storage_backend`: Storage backend for Research Note data. Use `json` or `sqlite`; default is `json`.
 - `enable_multi_agent_creation_tools`: Whether `/research agent_multi` can use Python and file creation tools.
 - `multi_agent_creation_tools`: Creation tool names added to `/research agent_multi`.
 - `max_import_chars`: Maximum text characters kept from an import preview.

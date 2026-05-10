@@ -132,6 +132,12 @@
     "type": "bool",
     "default": false
   },
+  "storage_backend": {
+    "description": "Research Note の保存 backend。json または sqlite",
+    "type": "string",
+    "default": "json",
+    "enum": ["json", "sqlite"]
+  },
   "enable_multi_agent_creation_tools": {
     "description": "research agent_multi に Python 実行やファイル作成 tool を追加する",
     "type": "bool",
